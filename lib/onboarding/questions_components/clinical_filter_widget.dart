@@ -1,11 +1,55 @@
 import 'package:flutter/material.dart';
 
+/// Colores del diseño Glucy AI
+class GlucyColors {
+  static const deep = Color(0xFF052E33);
+  static const primary = Color(0xFF0A7C86);
+  static const bg = Color(0xFFF4FAF9);
+  static const cardBorderDefault = Color(0x14052E33); // rgba(5,46,51,0.08)
+  static const cardBorderAlarm = Color(0x66E8574B); // rgba(232,87,75,0.4)
+  static const ink = Color(0xFF10262A);
+  static const muted = Color(0x9910262A); // rgba(16,38,42,0.6)
+  static const alert = Color(0xFFE8574B);
+  static const track = Color(0xFFE1EDEA);
+  static const chipTealBg = Color(0xFFDEF3EC);
+  static const chipTealFg = Color(0xFF0A7C86);
+  static const siBorder = Color(0x4DE8574B); // rgba(232,87,75,0.3)
+  static const noBorder = Color(0x4D0A7C86); // rgba(10,124,134,0.3)
+}
+
+/// Modelo de cada pregunta del filtro clínico
+class ClinicalQuestion {
+  final String id;
+  final String text;
+  final bool alarmIsSi; // true = la respuesta de alarma es "Sí", false = "No"
+  final bool urgent; // si es true, detiene el flujo por urgencia (no solo "no apto")
+  final String reason; // motivo mostrado en la pantalla de "no apto"
+
+  const ClinicalQuestion({
+    required this.id,
+    required this.text,
+    required this.alarmIsSi,
+    required this.reason,
+    this.urgent = false,
+  });
+}
+
 class ClinicalFilterScreen extends StatefulWidget {
-  final VoidCallback onAdultConfirmed;
+  /// Se llama cuando el usuario completa el filtro sin ninguna alarma.
+  final VoidCallback onPassed;
+
+  /// Se llama cuando responde una alarma marcada como urgente (síntomas agudos).
+  final VoidCallback onUrgent;
+
+  /// Se llama cuando responde una alarma que lo descalifica (no apto).
+  /// Recibe el motivo (ClinicalQuestion.reason) de la pregunta de alarma.
+  final ValueChanged<String> onNotEligible;
 
   const ClinicalFilterScreen({
     super.key,
-    required this.onAdultConfirmed,
+    required this.onPassed,
+    required this.onUrgent,
+    required this.onNotEligible,
   });
 
   @override
@@ -13,50 +57,195 @@ class ClinicalFilterScreen extends StatefulWidget {
 }
 
 class _ClinicalFilterScreenState extends State<ClinicalFilterScreen> {
-  bool? _isAdult;
+  static const List<ClinicalQuestion> _questions = [
+    ClinicalQuestion(
+      id: 'q1',
+      text: '¿Tienes 18 años o más?',
+      alarmIsSi: false,
+      reason: 'ser menor de 18 años',
+    ),
+    ClinicalQuestion(
+      id: 'q2',
+      text: '¿Estás embarazada o en lactancia?',
+      alarmIsSi: true,
+      reason: 'embarazo o lactancia',
+    ),
+    ClinicalQuestion(
+      id: 'q3',
+      text: '¿Diagnóstico previo de diabetes tipo 1 o uso de bomba de insulina?',
+      alarmIsSi: true,
+      reason: 'diabetes tipo 1 o bomba de insulina',
+    ),
+    ClinicalQuestion(
+      id: 'q4',
+      text: '¿Tienes ahora vómitos persistentes, dolor abdominal intenso, '
+          'respiración rápida o confusión?',
+      alarmIsSi: true,
+      urgent: true,
+      reason: 'síntomas de descompensación aguda',
+    ),
+    ClinicalQuestion(
+      id: 'q5',
+      text: '¿Diálisis o enfermedad renal avanzada?',
+      alarmIsSi: true,
+      reason: 'diálisis o enfermedad renal avanzada',
+    ),
+    ClinicalQuestion(
+      id: 'q6',
+      text: '¿Cirrosis o enfermedad hepática avanzada?',
+      alarmIsSi: true,
+      reason: 'cirrosis o enfermedad hepática avanzada',
+    ),
+    ClinicalQuestion(
+      id: 'q7',
+      text: '¿Cáncer en tratamiento activo o trasplante de órgano?',
+      alarmIsSi: true,
+      reason: 'cáncer en tratamiento activo o trasplante',
+    ),
+    ClinicalQuestion(
+      id: 'q8',
+      text: '¿Insuficiencia cardíaca severa o infarto en los últimos 6 meses?',
+      alarmIsSi: true,
+      reason: 'insuficiencia cardíaca severa o infarto reciente',
+    ),
+    ClinicalQuestion(
+      id: 'q9',
+      text: '¿Tomas corticoides de forma crónica?',
+      alarmIsSi: true,
+      reason: 'uso crónico de corticoides',
+    ),
+  ];
 
-  static const Color _bgColor = Color(0xFF052E33);
-  static const Color _neonGreen = Color(0xFF2EE6A8);
-  static const Color _textColor = Color(0xFFFFFFFF);
+  // null = sin responder, true = "Sí", false = "No"
+  final Map<String, bool?> _answers = {};
 
-  bool get _canContinue => _isAdult != null;
+  int get _answeredCount => _answers.values.where((v) => v != null).length;
+  int get _total => _questions.length;
+  double get _pct => _total == 0 ? 0 : _answeredCount / _total;
+  bool get _allAnswered => _answeredCount == _total;
 
-  void _handleSelection(bool isAdult) {
-    setState(() => _isAdult = isAdult);
+  /// Primera pregunta cuya respuesta coincide con su valor de alarma
+  ClinicalQuestion? get _alarmQuestion {
+    for (final q in _questions) {
+      final ans = _answers[q.id];
+      if (ans != null && ans == q.alarmIsSi) return q;
+    }
+    return null;
   }
 
-  void _handleContinue() {
-    if (_isAdult == true) {
-      widget.onAdultConfirmed();
-    } else if (_isAdult == false) {
-      _showMinorBlockedDialog();
+  void _responder(String id, bool valor) {
+    setState(() => _answers[id] = valor);
+  }
+
+  void _submit() {
+    if (!_allAnswered) return;
+    final alarm = _alarmQuestion;
+    if (alarm == null) {
+      widget.onPassed();
+    } else if (alarm.urgent) {
+      widget.onUrgent();
+    } else {
+      widget.onNotEligible(alarm.reason);
     }
   }
 
-  void _showMinorBlockedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _bgColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: _neonGreen, width: 1.5),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: GlucyColors.bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _header(context),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+                itemCount: _questions.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => _questionCard(_questions[index]),
+              ),
+            ),
+            _bottomCta(),
+          ],
         ),
-        title: const Text(
-          'Acceso restringido',
-          style: TextStyle(color: _textColor, fontWeight: FontWeight.w600),
-        ),
-        content: const Text(
-          'Esta aplicación está diseñada para uso de personas mayores de 18 años. '
-          'Si tienes dudas sobre tu salud, consulta con un profesional médico o con un adulto responsable.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Entendido',
-              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  // ---------- Header: volver, título, pills, descripción y barra de progreso ----------
+  Widget _header(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              InkWell(
+                onTap: () => Navigator.of(context).pop(),
+                borderRadius: BorderRadius.circular(32),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: GlucyColors.cardBorderDefault),
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new, size: 13, color: GlucyColors.primary),
+                ),
+              ),
+              const Expanded(
+                child: Text(
+                  'Filtro clínico',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Sora',
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    color: GlucyColors.deep,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 32),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              _pill('Filtro 1 de 2 · sin estudios', filled: true),
+              _pill('3 min', filled: false),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Una sola respuesta de alarma detiene el proceso antes de pedirte un solo estudio.',
+            style: TextStyle(fontSize: 12.5, height: 1.5, color: GlucyColors.muted),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Pregunta $_answeredCount de $_total',
+                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: GlucyColors.muted),
+              ),
+              const Text(
+                'Semáforo clínico',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: GlucyColors.muted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: _pct,
+              minHeight: 6,
+              backgroundColor: GlucyColors.track,
+              valueColor: const AlwaysStoppedAnimation(GlucyColors.primary),
             ),
           ),
         ],
@@ -64,102 +253,53 @@ class _ClinicalFilterScreenState extends State<ClinicalFilterScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildLogo(),
-                const SizedBox(height: 40),
-                _buildFilterCard(),
-                const SizedBox(height: 32),
-                _buildContinueButton(),
-              ],
-            ),
-          ),
+  Widget _pill(String text, {required bool filled}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: filled ? GlucyColors.chipTealBg : Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: filled ? null : Border.all(color: GlucyColors.cardBorderDefault),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: filled ? GlucyColors.chipTealFg : GlucyColors.muted,
         ),
       ),
     );
   }
 
-  Widget _buildLogo() {
-    return SizedBox(
-      width: 64,
-      height: 64,
-      child: CustomPaint(
-        painter: _GlucyLogoPainter(strokeColor: _neonGreen, nodeColor: _textColor),
-      ),
-    );
-  }
+  // ---------- Tarjeta de cada pregunta ----------
+  Widget _questionCard(ClinicalQuestion q) {
+    final ans = _answers[q.id];
+    final isAlarm = ans != null && ans == q.alarmIsSi;
 
-  Widget _buildFilterCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: _bgColor,
-        borderRadius: BorderRadius.circular(28.0),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _neonGreen,
-          width: 3.0,
+          color: isAlarm ? GlucyColors.cardBorderAlarm : GlucyColors.cardBorderDefault,
         ),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.medical_information_outlined,
-            color: Color(0xE6FFFFFF), // blanco 90% opacidad
-            size: 48,
+          Text(
+            q.text,
+            style: const TextStyle(fontSize: 13, height: 1.4, fontWeight: FontWeight.w500, color: GlucyColors.ink),
           ),
-          const SizedBox(height: 24),
-          const Text(
-            '¿Tienes 18 años o más?',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: _textColor,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Necesitamos confirmar tu edad antes de continuar.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.white54,
-            ),
-          ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 9),
           Row(
             children: [
-              Expanded(
-                child: _NeonButton(
-                  text: 'Sí',
-                  isSelected: _isAdult == true,
-                  neonGreen: _neonGreen,
-                  textColor: _textColor,
-                  onPressed: () => _handleSelection(true),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _NeonButton(
-                  text: 'No',
-                  isSelected: _isAdult == false,
-                  neonGreen: _neonGreen,
-                  textColor: _textColor,
-                  onPressed: () => _handleSelection(false),
-                ),
-              ),
+              Expanded(child: _respuestaBoton(q, valor: true, seleccionado: ans == true, label: 'Sí')),
+              const SizedBox(width: 8),
+              Expanded(child: _respuestaBoton(q, valor: false, seleccionado: ans == false, label: 'No')),
             ],
           ),
         ],
@@ -167,148 +307,67 @@ class _ClinicalFilterScreenState extends State<ClinicalFilterScreen> {
     );
   }
 
-  Widget _buildContinueButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: _canContinue ? _handleContinue : null,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _neonGreen,
-          disabledBackgroundColor: _neonGreen.withOpacity(0.25),
-          foregroundColor: _bgColor,
-          disabledForegroundColor: Colors.white38,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          elevation: 0,
-        ),
-        child: const Text(
-          'Continuar',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
-}
+  Widget _respuestaBoton(
+    ClinicalQuestion q, {
+    required bool valor,
+    required bool seleccionado,
+    required String label,
+  }) {
+    // Si esta opción coincide con la alarma de la pregunta, se pinta de rojo
+    // al seleccionarla; si no, se pinta con el teal principal.
+    final esAlarma = valor == q.alarmIsSi;
+    final bgSeleccionado = esAlarma ? GlucyColors.alert : GlucyColors.primary;
+    final borderColor = valor ? GlucyColors.siBorder : GlucyColors.noBorder;
 
-class _NeonButton extends StatelessWidget {
-  final String text;
-  final bool isSelected;
-  final Color neonGreen;
-  final Color textColor;
-  final VoidCallback onPressed;
-
-  const _NeonButton({
-    required this.text,
-    required this.isSelected,
-    required this.neonGreen,
-    required this.textColor,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(12.0),
+      borderRadius: BorderRadius.circular(9),
+      onTap: () => _responder(q.id, valor),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16.0),
-        decoration: BoxDecoration(
-          color: isSelected ? neonGreen.withOpacity(0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12.0),
-          border: Border.all(
-            color: isSelected ? neonGreen : textColor.withOpacity(0.3),
-            width: isSelected ? 2.0 : 1.0,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: neonGreen.withOpacity(0.2),
-                    blurRadius: 8.0,
-                    spreadRadius: 1.0,
-                  )
-                ]
-              : [],
-        ),
+        padding: const EdgeInsets.symmetric(vertical: 9),
         alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: seleccionado ? bgSeleccionado : Colors.white,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: borderColor),
+        ),
         child: Text(
-          text,
+          label,
           style: TextStyle(
-            color: isSelected ? neonGreen : textColor.withOpacity(0.8),
-            fontSize: 16,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: seleccionado ? Colors.white : GlucyColors.ink,
           ),
         ),
       ),
     );
   }
-}
 
-/// Recrea el ícono del SVG original: un contorno tipo "corazón/hoja" en verde
-/// neón con tres nodos blancos conectados en su interior.
-class _GlucyLogoPainter extends CustomPainter {
-  final Color strokeColor;
-  final Color nodeColor;
+  // ---------- Botón inferior fijo ----------
+  Widget _bottomCta() {
+    final label = _allAnswered ? 'Ver mi resultado' : 'Responde las $_total preguntas';
+    final bg = _allAnswered ? GlucyColors.primary : GlucyColors.primary.withOpacity(0.35);
 
-  _GlucyLogoPainter({required this.strokeColor, required this.nodeColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double sx = size.width / 100;
-    final double sy = size.height / 100;
-
-    Offset p(double x, double y) => Offset(x * sx, y * sy);
-
-    // Contorno principal (aprox. al path del SVG original)
-    final outline = Path()
-      ..moveTo(p(50, 10).dx, p(50, 10).dy)
-      ..cubicTo(
-        p(50, 10).dx, p(50, 10).dy,
-        p(22, 44).dx, p(22, 44).dy,
-        p(22, 63).dx, p(22, 63).dy,
-      )
-      ..arcToPoint(
-        p(78, 63),
-        radius: Radius.elliptical(28 * sx, 28 * sy),
-        clockwise: false,
-      )
-      ..cubicTo(
-        p(78, 44).dx, p(78, 44).dy,
-        p(50, 10).dx, p(50, 10).dy,
-        p(50, 10).dx, p(50, 10).dy,
-      )
-      ..close();
-
-    final outlinePaint = Paint()
-      ..color = strokeColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5 * sx
-      ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawPath(outline, outlinePaint);
-
-    // Líneas internas conectando los 3 nodos
-    final innerLines = Path()
-      ..moveTo(p(40, 58).dx, p(40, 58).dy)
-      ..lineTo(p(60, 52).dx, p(60, 52).dy)
-      ..lineTo(p(53, 72).dx, p(53, 72).dy)
-      ..lineTo(p(40, 58).dx, p(40, 58).dy);
-
-    final innerPaint = Paint()
-      ..color = nodeColor.withOpacity(0.62)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2 * sx;
-
-    canvas.drawPath(innerLines, innerPaint);
-
-    // Nodos (círculos blancos)
-    final nodePaint = Paint()..color = nodeColor;
-    canvas.drawCircle(p(40, 58), 4.5 * sx, nodePaint);
-    canvas.drawCircle(p(60, 52), 4.5 * sx, nodePaint);
-    canvas.drawCircle(p(53, 72), 4.5 * sx, nodePaint);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: GlucyColors.cardBorderDefault)),
+      ),
+      child: ElevatedButton(
+        onPressed: _submit,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: bg,
+          foregroundColor: GlucyColors.bg,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant _GlucyLogoPainter oldDelegate) => false;
 }

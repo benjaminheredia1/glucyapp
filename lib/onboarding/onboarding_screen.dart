@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:glucy_app/doctor/doctor_login_screen.dart';
+import 'package:glucy_app/profile/profile.dart';
 
 /// Colores extraídos del diseño (Glucy AI)
 class GlucyColors {
@@ -50,9 +52,8 @@ class OnboardingScreen extends StatelessWidget {
   ];
 
   void _empezar(BuildContext context) {
-    // Reemplazá esto por la navegación real a "Tu perfil"
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const _PerfilPlaceholder()),
+      MaterialPageRoute(builder: (_) => const Profile()),
     );
   }
 
@@ -156,6 +157,56 @@ class OnboardingScreen extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11.5,
                     color: GlucyColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: GlucyColors.cardBorder)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text(
+                        'acceso profesional',
+                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: GlucyColors.muted.withValues(alpha: 0.7), letterSpacing: 0.6),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: GlucyColors.cardBorder)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DoctorLoginScreen())),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: GlucyColors.primary.withValues(alpha: 0.35), width: 1.5),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(color: GlucyColors.iconBg, borderRadius: BorderRadius.circular(11)),
+                          child: const Icon(Icons.shield_outlined, size: 18, color: GlucyColors.primary),
+                        ),
+                        const SizedBox(width: 11),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Soy doctor, ingresar', style: TextStyle(fontFamily: 'Inter', fontSize: 13.5, fontWeight: FontWeight.w700, color: GlucyColors.deep)),
+                              Text('Portal de validación clínica', style: TextStyle(fontSize: 11, color: GlucyColors.muted)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, size: 18, color: GlucyColors.primary),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -273,18 +324,6 @@ class GlucyLogoMark extends StatelessWidget {
       'lib/assets/glucy_drop_icon.svg',
       width: size,
       height: size,
-    );
-  }
-}
-
-/// Placeholder de la siguiente pantalla ("Tu perfil") solo para poder navegar
-class _PerfilPlaceholder extends StatelessWidget {
-  const _PerfilPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Tu perfil')),
     );
   }
 }
