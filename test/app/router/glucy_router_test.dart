@@ -6,6 +6,7 @@ import 'package:glucy_app/app/router/rutas.dart';
 import 'package:glucy_app/features/auth/data/auth_repository.dart';
 import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
+import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
 import 'package:go_router/go_router.dart';
 
 class AuthRepositoryFalso implements AuthRepository {
@@ -21,6 +22,27 @@ class AuthRepositoryFalso implements AuthRepository {
 
   @override
   Future<void> cerrarSesion() async {}
+}
+
+/// A diferencia de `AuthRepositoryFalso`, distingue lo que ya habia guardado
+/// de lo que devuelve un `iniciarSesion()` posterior: hace falta para probar
+/// que el router rerutea una app ya montada, no solo en el primer build.
+class AuthRepositoryDinamica implements AuthRepository {
+  AuthRepositoryDinamica({this.almacenada, this.alIniciar});
+
+  Usuario? almacenada;
+  Usuario? alIniciar;
+
+  @override
+  Future<Usuario> iniciarSesion() async => alIniciar!;
+
+  @override
+  Future<Usuario?> restaurarSesion() async => almacenada;
+
+  @override
+  Future<void> cerrarSesion() async {
+    almacenada = null;
+  }
 }
 
 Usuario usuarioCon(Rol rol) => Usuario(id: 1, name: 'X', email: 'x@ejemplo.com', rol: rol);
@@ -106,5 +128,61 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rutaActual(router), Rutas.filtroClinico);
+  });
+
+  // Las pruebas de arriba mueven el router con router.go(...) o dejan que el
+  // timer del splash llame a context.go(...): ambas rutas re-ejecutan
+  // redirect por la navegacion normal de go_router, no por el
+  // refreshListenable. Estas dos prueban lo unico que de verdad ejercita
+  // _NotificadorSesion: cambiar el estado del propio sesionControllerProvider
+  // con la app ya montada, sin tocar el router para nada.
+  testWidgets('iniciar sesion en una app ya montada rerutea sin remount', (tester) async {
+    final repo = AuthRepositoryDinamica(alIniciar: usuarioCon(Rol.paciente));
+    final contenedor = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(repo)],
+    );
+    addTearDown(contenedor.dispose);
+
+    final router = contenedor.read(glucyRouterProvider);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: contenedor,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.onboarding);
+
+    await contenedor.read(sesionControllerProvider.notifier).iniciarSesion();
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.inicioPaciente);
+  });
+
+  testWidgets('cerrar sesion en una app ya montada rerutea sin remount', (tester) async {
+    final repo = AuthRepositoryDinamica(almacenada: usuarioCon(Rol.paciente));
+    final contenedor = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(repo)],
+    );
+    addTearDown(contenedor.dispose);
+
+    final router = contenedor.read(glucyRouterProvider);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: contenedor,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.inicioPaciente);
+
+    await contenedor.read(sesionControllerProvider.notifier).cerrarSesion();
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.login);
   });
 }

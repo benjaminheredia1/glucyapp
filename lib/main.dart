@@ -11,16 +11,39 @@ import 'features/auth/data/renovador_sesion.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
-
   final AppConfig config;
 
   try {
+    // dotenv.load tiene que fallar tambien aqui dentro: si se queda fuera del
+    // try, un .env que falta -- el fallo de configuracion mas probable ahora
+    // mismo, con el tenant de Auth0 todavia sin dar de alta -- tira la app
+    // antes de que _PantallaDeConfigRota llegue a explicar nada.
+    await dotenv.load(fileName: '.env');
     config = AppConfig.desdeMapa(dotenv.env);
   } on ConfigInvalida catch (e) {
     // Fallar aqui, con el motivo exacto, en vez de dar errores raros de red mas
     // adelante.
     runApp(_PantallaDeConfigRota(mensaje: e.mensaje));
+
+    return;
+  } on FileNotFoundError {
+    // FileNotFoundError y EmptyEnvFileError son Error, no Exception: asi
+    // modela flutter_dotenv un fallo de configuracion recuperable, no un bug
+    // de programacion, y por eso vale la pena capturarlas aqui igual que
+    // ConfigInvalida.
+    runApp(
+      const _PantallaDeConfigRota(
+        mensaje: 'Falta el archivo .env. Copia .env.example y rellenalo.',
+      ),
+    );
+
+    return;
+  } on EmptyEnvFileError {
+    runApp(
+      const _PantallaDeConfigRota(
+        mensaje: 'El archivo .env esta vacio. Copia .env.example y rellenalo.',
+      ),
+    );
 
     return;
   }
