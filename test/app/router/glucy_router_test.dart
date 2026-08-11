@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,6 +49,25 @@ class AuthRepositoryDinamica implements AuthRepository {
   Future<void> cerrarSesion() async {
     almacenada = null;
   }
+}
+
+/// Fix 1 del review final: `iniciarSesion()` pone `AsyncLoading` durante todo
+/// el viaje a Universal Login, que en la app real dura segundos porque el
+/// usuario esta en un navegador. Para atrapar al router en pleno vuelo (antes
+/// de que Auth0 conteste) hace falta una promesa que de verdad no resuelva,
+/// no un delay corto: un `Future.delayed` se resolveria solo con
+/// `pumpAndSettle`, y este test necesita justo lo contrario, un solo frame.
+class AuthRepositoryQueNuncaResuelveAlIniciar implements AuthRepository {
+  final Completer<Usuario> _pendiente = Completer<Usuario>();
+
+  @override
+  Future<Usuario> iniciarSesion() => _pendiente.future;
+
+  @override
+  Future<Usuario?> restaurarSesion() async => null;
+
+  @override
+  Future<void> cerrarSesion() async {}
 }
 
 Usuario usuarioCon(Rol rol) => Usuario(id: 1, name: 'X', email: 'x@ejemplo.com', rol: rol);
@@ -254,6 +275,29 @@ void main() {
     expect(rutaActual(router), Rutas.noApto);
   });
 
+  // Fix 3 del review final: se llega a /no-apto por context.go(...) desde el
+  // filtro clinico (unica entrada real), asi que esta pantalla queda sola en
+  // el stack de go_router. Antes del fix, la flecha de volver llamaba a
+  // Navigator.of(context).pop() a secas y GoRouter lanzaba
+  // GoError('There is nothing to pop'), exactamente el mismo bug que
+  // clinical_filter_widget.dart ya habia arreglado con context.canPop().
+  testWidgets('la flecha de volver en no-apto no revienta un stack vacio', (tester) async {
+    final router = await montar(
+      tester,
+      null,
+      precalificacion: PrecalificacionRepositoryFalso(resultado: Resultado.noApto),
+    );
+
+    await _completarFiltroClinico(tester, router);
+    expect(rutaActual(router), Rutas.noApto);
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(rutaActual(router), Rutas.onboarding);
+  });
+
   // Las pruebas de arriba mueven el router con router.go(...) o dejan que el
   // timer del splash llame a context.go(...): ambas rutas re-ejecutan
   // redirect por la navegacion normal de go_router, no por el
@@ -306,6 +350,46 @@ void main() {
 
     await contenedor.read(sesionControllerProvider.notifier).cerrarSesion();
     await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.login);
+  });
+
+  // Fix 1 del review final: antes de este fix, el redirect mandaba al splash
+  // en cuanto `sesionControllerProvider` entraba en `AsyncLoading`, sin
+  // distinguir el arranque en frio de un `iniciarSesion()` en marcha. Con
+  // sesion ya resuelta (aqui, `noAutenticado`), tocar "Entrar o crear cuenta"
+  // pone el estado en loading otra vez, pero como ya hay un valor previo
+  // (`hasValue` sigue en true) el usuario tiene que seguir viendo el login,
+  // no el splash: solo asi el spinner y el `MensajeError` de la Task 13/14
+  // llegan a pintarse alguna vez.
+  testWidgets('iniciarSesion en marcha no saca de la pantalla de login', (tester) async {
+    final repo = AuthRepositoryQueNuncaResuelveAlIniciar();
+    final contenedor = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(repo)],
+    );
+    addTearDown(contenedor.dispose);
+
+    final router = contenedor.read(glucyRouterProvider);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: contenedor,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    router.go(Rutas.login);
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.login);
+
+    await tester.tap(find.byKey(const Key('boton-acceder')));
+    // Un solo frame, no pumpAndSettle: `iniciarSesion()` nunca resuelve en
+    // este doble, asi que pumpAndSettle se colgaria esperando algo que no
+    // va a llegar. Esta es justo la ventana (un frame tras el tap, con Auth0
+    // todavia sin abrirse) donde vivia el bug original.
+    await tester.pump();
 
     expect(rutaActual(router), Rutas.login);
   });

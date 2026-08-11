@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
 import 'package:glucy_app/home/editar_perfil_screen.dart';
 import 'package:glucy_app/home/faq_screen.dart';
 import 'package:glucy_app/home/patient_tabbar.dart';
 import 'package:glucy_app/home/suscripcion_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/elegibilidad_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/estudios_screen.dart';
-import 'package:glucy_app/onboarding/splash_screen.dart';
 
 class GlucyColors {
   static const deep = Color(0xFF052E33);
@@ -26,7 +27,7 @@ class _Row {
 
 /// Cuenta del paciente: accesos a perfil, suscripción, elegibilidad,
 /// estudios y ayuda, más el cierre de sesión.
-class CuentaScreen extends StatelessWidget {
+class CuentaScreen extends ConsumerWidget {
   const CuentaScreen({super.key});
 
   static final _rows = [
@@ -43,12 +44,19 @@ class CuentaScreen extends StatelessWidget {
         (ctx) => () => Navigator.of(ctx).push(MaterialPageRoute(builder: (_) => const FaqScreen()))),
   ];
 
-  void _cerrarSesion(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const SplashScreen()), (route) => false);
+  // No navega a mano: en cuanto `cerrarSesion()` deja el estado en
+  // `noAutenticado`, el redirect de `glucyRouterProvider` saca de aqui solo,
+  // igual que en `crear_cuenta_screen.dart`/`doctor_login_screen.dart` con
+  // `iniciarSesion()`. Verificado con un doble de router: el redirect
+  // reemplaza incluso una pantalla llegada por `Navigator.pushReplacement`
+  // (como esta, vease `patient_tabbar.dart`), asi que no hace falta un
+  // `Navigator.pushAndRemoveUntil` de respaldo.
+  void _cerrarSesion(WidgetRef ref) {
+    ref.read(sesionControllerProvider.notifier).cerrarSesion();
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: GlucyColors.bg,
       body: SafeArea(
@@ -139,7 +147,8 @@ class CuentaScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 13),
                     OutlinedButton(
-                      onPressed: () => _cerrarSesion(context),
+                      key: const Key('boton-cerrar-sesion'),
+                      onPressed: () => _cerrarSesion(ref),
                       style: OutlinedButton.styleFrom(foregroundColor: const Color(0xB310262A), side: const BorderSide(color: Color(0x26052E33)), padding: const EdgeInsets.symmetric(vertical: 13)),
                       child: const Text('Cerrar sesión', style: TextStyle(fontFamily: 'Sora', fontSize: 13, fontWeight: FontWeight.w700)),
                     ),

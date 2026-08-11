@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glucy_app/doctor/doctor_data.dart';
 import 'package:glucy_app/doctor/doctor_tabbar.dart';
-import 'package:glucy_app/onboarding/splash_screen.dart';
+import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
 
 class _Stat {
   final String value;
@@ -19,14 +20,14 @@ class _Row {
 
 /// Cuenta profesional: disponibilidad para casos nuevos, atajos de
 /// auditoría/honorarios y cierre de sesión.
-class PerfilDocScreen extends StatefulWidget {
+class PerfilDocScreen extends ConsumerStatefulWidget {
   const PerfilDocScreen({super.key});
 
   @override
-  State<PerfilDocScreen> createState() => _PerfilDocScreenState();
+  ConsumerState<PerfilDocScreen> createState() => _PerfilDocScreenState();
 }
 
-class _PerfilDocScreenState extends State<PerfilDocScreen> {
+class _PerfilDocScreenState extends ConsumerState<PerfilDocScreen> {
   final Map<String, bool> _availability = {'L': true, 'M': true, 'X': true, 'J': true, 'V': true, 'S': false, 'D': false};
   bool _urgentOn = true;
 
@@ -43,8 +44,15 @@ class _PerfilDocScreenState extends State<PerfilDocScreen> {
     _Row(Icons.help_outline, 'Soporte profesional', 'Línea directa para médicos'),
   ];
 
+  // No navega a mano: en cuanto `cerrarSesion()` deja el estado en
+  // `noAutenticado`, el redirect de `glucyRouterProvider` saca de aqui solo,
+  // igual que en `crear_cuenta_screen.dart`/`doctor_login_screen.dart` con
+  // `iniciarSesion()`. Verificado con un doble de router: el redirect
+  // reemplaza incluso una pantalla llegada por `Navigator.pushReplacement`
+  // (como esta, vease `doctor_tabbar.dart`), asi que no hace falta un
+  // `Navigator.pushAndRemoveUntil` de respaldo.
   void _cerrarSesion() {
-    Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const SplashScreen()), (route) => false);
+    ref.read(sesionControllerProvider.notifier).cerrarSesion();
   }
 
   @override
@@ -208,6 +216,7 @@ class _PerfilDocScreenState extends State<PerfilDocScreen> {
                     ),
                     const SizedBox(height: 13),
                     OutlinedButton(
+                      key: const Key('boton-cerrar-sesion'),
                       onPressed: _cerrarSesion,
                       style: OutlinedButton.styleFrom(foregroundColor: const Color(0xB310262A), side: const BorderSide(color: Color(0x26052E33)), padding: const EdgeInsets.symmetric(vertical: 13)),
                       child: const Text('Cerrar sesión', style: TextStyle(fontFamily: 'Sora', fontSize: 13, fontWeight: FontWeight.w700)),

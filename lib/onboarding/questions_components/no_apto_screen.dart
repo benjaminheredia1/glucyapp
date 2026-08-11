@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:glucy_app/onboarding/splash_screen.dart';
+import 'package:glucy_app/app/router/rutas.dart';
+import 'package:go_router/go_router.dart';
 
 /// Colores del diseño Glucy AI
 class GlucyColors {
@@ -29,12 +30,13 @@ class NoAptoScreen extends StatelessWidget {
 
   const NoAptoScreen({super.key, required this.reason, required this.recap});
 
-  void _volverAlInicio(BuildContext context) {
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const SplashScreen()),
-      (route) => false,
-    );
-  }
+  // Se llega aqui por context.go(Rutas.noApto) desde el filtro clinico
+  // (unica entrada real, vease glucy_router.dart), asi que esta pantalla
+  // queda sola en el stack. Un Navigator.push(SplashScreen()) a mano
+  // funcionaba por accidente, pero saltaba por fuera de go_router: el
+  // redirect del router no se enteraba de ese cambio de pantalla. Igual que
+  // en la flecha de volver, se navega con el propio router.
+  void _volverAlInicio(BuildContext context) => context.go(Rutas.onboarding);
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +51,12 @@ class NoAptoScreen extends StatelessWidget {
               Row(
                 children: [
                   InkWell(
-                    onTap: () => Navigator.of(context).pop(),
+                    // Se llega aqui por context.go(Rutas.noApto) (unica
+                    // entrada real), asi que esta pantalla queda sola en el
+                    // stack: un pop() a secas lanzaria GoError('There is
+                    // nothing to pop'), igual que el bug ya arreglado en
+                    // clinical_filter_widget.dart.
+                    onTap: () => context.canPop() ? context.pop() : context.go(Rutas.onboarding),
                     borderRadius: BorderRadius.circular(32),
                     child: Container(
                       width: 32,

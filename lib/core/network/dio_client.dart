@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,10 +19,19 @@ BaseOptions _opciones(AppConfig config) => BaseOptions(
       headers: const {'Accept': 'application/json'},
     );
 
-Interceptor _log() => LogInterceptor(
+// El cuerpo de la peticion nunca se loguea, ni redactado: `redactarParaLog`
+// solo reconoce el JSON citado ("clave":"valor") que imprime el cuerpo de
+// una RESPUESTA. `AuthApi.intercambiar` manda un `Map` de Dart como cuerpo de
+// la peticion, y el logger de dio imprime un Map con su `.toString()`
+// (`{accessToken: eyJ..., dispositivo: api}`, sin comillas), una forma que el
+// regex no cubre: el access token de Auth0 se imprimiria en claro. Apagar
+// `requestBody` cierra toda esa clase de fuga en vez de perseguir cada forma
+// sin comillas que pueda producir un Map.
+@visibleForTesting
+LogInterceptor crearInterceptorLog() => LogInterceptor(
       request: false,
       requestHeader: false,
-      requestBody: true,
+      requestBody: false,
       responseBody: true,
       logPrint: (linea) => debugPrint(redactarParaLog(linea.toString())),
     );
@@ -31,7 +40,7 @@ Interceptor _log() => LogInterceptor(
 ///
 /// `dioPublicoProvider` es quien hace el intercambio con Auth0, y esa
 /// respuesta llega en snake_case (`access_token`, `refresh_token`,
-/// `id_token`), no en el camelCase de esta app: si solo cubriéramos
+/// `id_token`), no en el camelCase de esta app: si solo cubrieramos
 /// `accessToken` el token de Auth0 se imprimiria en claro.
 // `replaceAll(Pattern, String)` no expande `$1`: a diferencia de JS, Dart
 // trata el reemplazo como texto literal. Hace falta `replaceAllMapped` para
@@ -57,7 +66,7 @@ final dioPublicoProvider = Provider<Dio>((ref) {
   dio.interceptors.add(ErrorInterceptor());
 
   if (config.logHttp && kDebugMode) {
-    dio.interceptors.add(_log());
+    dio.interceptors.add(crearInterceptorLog());
   }
 
   return dio;
@@ -87,7 +96,7 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(ErrorInterceptor());
 
   if (config.logHttp && kDebugMode) {
-    dio.interceptors.add(_log());
+    dio.interceptors.add(crearInterceptorLog());
   }
 
   return dio;

@@ -46,5 +46,38 @@ void main() {
 
       expect(resultado, '{"id":1,"nombre":"Ana"}');
     });
+
+    // Fix 4 del review final: `AuthApi.intercambiar` manda un `Map` de Dart
+    // como cuerpo de peticion, no JSON. El logger de dio imprime ese Map con
+    // `.toString()`, sin comillas alrededor de claves ni valores -- una forma
+    // que este regex, hecho para el JSON citado de una RESPUESTA, no
+    // reconoce. Esto no es un caso que la redaccion deba resolver: por eso
+    // el fix real es apagar `requestBody` (vease el siguiente group), y este
+    // test solo documenta por que la redaccion sola no basta.
+    test('NO redacta el "accessToken" en la forma sin comillas que imprime un Map (por diseño)', () {
+      final resultado = redactarParaLog('{accessToken: eyJhbGciOi.abc.def, dispositivo: api}');
+
+      expect(resultado, contains('eyJhbGciOi.abc.def'));
+    });
+  });
+
+  group('crearInterceptorLog', () {
+    // El cuerpo de la peticion de AuthApi.intercambiar (un Map de Dart, no
+    // JSON) es exactamente la forma que redactarParaLog no cubre (vease el
+    // test de arriba): la unica manera de que el access token de Auth0 no
+    // se imprima en claro es no imprimir el cuerpo de la peticion nunca.
+    test('nunca imprime el cuerpo de la peticion', () {
+      final interceptor = crearInterceptorLog();
+
+      expect(interceptor.requestBody, isFalse);
+    });
+
+    // El cuerpo de la RESPUESTA si llega citado (JSON de verdad), asi que la
+    // redaccion de arriba si lo cubre: no hace falta apagarlo tambien.
+    test('si imprime el cuerpo de la respuesta (la redaccion lo cubre)', () {
+      final interceptor = crearInterceptorLog();
+
+      expect(interceptor.responseBody, isTrue);
+    });
   });
 }

@@ -65,8 +65,15 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, estado) {
       final sesion = ref.read(sesionControllerProvider);
 
-      // Mientras se restaura la sesion, el splash se queda donde esta.
-      if (sesion.isLoading) {
+      // Solo el arranque en frio (cargando y sin ningun valor previo) manda
+      // al splash. `iniciarSesion()`/`cerrarSesion()` tambien ponen
+      // `AsyncLoading` mientras dura el viaje a Universal Login, pero ahi
+      // `hasValue` se mantiene en true (Riverpod conserva el dato anterior):
+      // sacar de la pantalla de login en ese momento dejaria el spinner y el
+      // `MensajeError` de la Task 13/14 inalcanzables, porque `ref.listen` es
+      // sincrono y este redirect se reevalua en cada cambio de estado, antes
+      // de que Auth0 llegue a abrirse.
+      if (sesion.isLoading && !sesion.hasValue) {
         return estado.matchedLocation == Rutas.splash ? null : Rutas.splash;
       }
 

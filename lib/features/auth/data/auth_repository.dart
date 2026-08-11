@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/fallo_api.dart';
 import '../../../core/storage/token_store.dart';
+import '../../precalificacion/data/embudo_store.dart';
 import '../domain/usuario.dart';
 import 'auth0_gateway.dart';
 import 'auth_api.dart';
@@ -15,15 +16,18 @@ class AuthRepository {
     required AuthApi authApi,
     required UsuarioApi usuarioApi,
     required TokenStore store,
+    required EmbudoStore embudo,
   })  : _gateway = gateway,
         _authApi = authApi,
         _usuarioApi = usuarioApi,
-        _store = store;
+        _store = store,
+        _embudo = embudo;
 
   final Auth0Gateway _gateway;
   final AuthApi _authApi;
   final UsuarioApi _usuarioApi;
   final TokenStore _store;
+  final EmbudoStore _embudo;
 
   Future<Usuario> iniciarSesion() async {
     final accessToken = await _gateway.iniciarSesion();
@@ -59,6 +63,11 @@ class AuthRepository {
 
     await _store.borrar();
     await _gateway.cerrarSesion();
+    // Las respuestas del filtro clinico son de la persona que las respondio,
+    // no del dispositivo: sin esto sobrevivirian a un cierre de sesion
+    // explicito y se le mostrarian a quien abra el filtro despues en el
+    // mismo telefono.
+    await _embudo.limpiar();
   }
 }
 
@@ -68,5 +77,6 @@ final authRepositoryProvider = Provider<AuthRepository>(
     authApi: ref.watch(authApiProvider),
     usuarioApi: ref.watch(usuarioApiProvider),
     store: ref.watch(tokenStoreProvider),
+    embudo: ref.watch(embudoStoreProvider),
   ),
 );

@@ -8,6 +8,7 @@ import 'package:glucy_app/features/auth/data/renovador_sesion.dart';
 import 'package:glucy_app/features/auth/data/usuario_api.dart';
 import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
+import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 
 import '../../../core/network/auth_interceptor_test.dart' show TokenStoreFalso;
 
@@ -68,11 +69,31 @@ class UsuarioApiFalsa implements UsuarioApi {
   Future<void> cerrarSesion() async => cierres++;
 }
 
+class EmbudoStoreFalso implements EmbudoStore {
+  int limpiezas = 0;
+
+  @override
+  Future<void> guardarProgreso(Map<int, bool> respuestas) async {}
+
+  @override
+  Future<Map<int, bool>> leerProgreso() async => {};
+
+  @override
+  Future<void> guardarPrecalificacion(int id) async {}
+
+  @override
+  Future<int?> leerPrecalificacion() async => null;
+
+  @override
+  Future<void> limpiar() async => limpiezas++;
+}
+
 void main() {
   late Auth0GatewayFalso gateway;
   late AuthApiFalsa authApi;
   late UsuarioApiFalsa usuarioApi;
   late TokenStoreFalso store;
+  late EmbudoStoreFalso embudo;
   late AuthRepository repo;
 
   setUp(() {
@@ -80,11 +101,13 @@ void main() {
     authApi = AuthApiFalsa();
     usuarioApi = UsuarioApiFalsa();
     store = TokenStoreFalso();
+    embudo = EmbudoStoreFalso();
     repo = AuthRepository(
       gateway: gateway,
       authApi: authApi,
       usuarioApi: usuarioApi,
       store: store,
+      embudo: embudo,
     );
   });
 
@@ -160,6 +183,24 @@ void main() {
 
       expect(await store.leer(), isNull);
       expect(gateway.cierres, 1);
+    });
+
+    // Fix 2 del review final: sin esto, las respuestas del filtro clinico
+    // (guardadas en EmbudoStore, vease embudo_store.dart) sobrevivian a un
+    // cierre de sesion explicito y se le mostrarian a la siguiente persona
+    // que abriera el filtro en el mismo dispositivo.
+    test('limpia el embudo local', () async {
+      await repo.cerrarSesion();
+
+      expect(embudo.limpiezas, 1);
+    });
+
+    test('limpia el embudo incluso si el servidor falla', () async {
+      usuarioApi.error = const FalloServidor();
+
+      await repo.cerrarSesion();
+
+      expect(embudo.limpiezas, 1);
     });
   });
 
