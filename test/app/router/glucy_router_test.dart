@@ -7,6 +7,9 @@ import 'package:glucy_app/features/auth/data/auth_repository.dart';
 import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
+import 'package:glucy_app/features/precalificacion/data/precalificacion_repository.dart';
+import 'package:glucy_app/features/precalificacion/domain/pregunta_filtro.dart';
+import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
 import 'package:go_router/go_router.dart';
 
 class AuthRepositoryFalso implements AuthRepository {
@@ -47,9 +50,28 @@ class AuthRepositoryDinamica implements AuthRepository {
 
 Usuario usuarioCon(Rol rol) => Usuario(id: 1, name: 'X', email: 'x@ejemplo.com', rol: rol);
 
+/// El filtro clinico (Task 15) pide sus preguntas al montarse. Sin este fake,
+/// `router.go(Rutas.filtroClinico)` dispara una llamada real a traves de
+/// `appConfigProvider`, que este archivo no sobrescribe: este test solo
+/// verifica que la ruta es alcanzable, no el contenido de la pantalla.
+class PrecalificacionRepositoryFalso implements PrecalificacionRepository {
+  @override
+  Future<List<PreguntaFiltro>> preguntas() async => const [];
+
+  @override
+  Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) async =>
+      const Veredicto(id: 1, resultado: Resultado.apto);
+
+  @override
+  Future<void> vincular(int precalificacionId) async {}
+}
+
 Future<GoRouter> montar(WidgetTester tester, Usuario? almacenada) async {
   final contenedor = ProviderContainer(
-    overrides: [authRepositoryProvider.overrideWithValue(AuthRepositoryFalso(almacenada))],
+    overrides: [
+      authRepositoryProvider.overrideWithValue(AuthRepositoryFalso(almacenada)),
+      precalificacionRepositoryProvider.overrideWithValue(PrecalificacionRepositoryFalso()),
+    ],
   );
   addTearDown(contenedor.dispose);
 

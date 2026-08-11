@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_datetime_picker_plus/flutter_datetime_picker_plus.dart';
+import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
 import 'package:glucy_app/onboarding/questions_components/clinical_filter_widget.dart';
 import 'package:glucy_app/onboarding/questions_components/filtro1_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/no_apto_screen.dart';
@@ -518,21 +519,32 @@ class _ProfileState extends State<Profile> {
           Navigator.push(
             context,
             MaterialPageRoute(
+              // Pantalla legacy sin ruteo propio: el veredicto ya no lo calcula
+              // este widget (Task 15), asi que aqui solo se traduce a la misma
+              // navegacion que antes hacian los tres callbacks.
               builder: (_) => ClinicalFilterScreen(
-                onPassed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const Filtro1Screen()),
-                ),
-                onUrgent: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const UrgencyScreen()),
-                ),
-                onNotEligible: (reason) => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => NoAptoScreen(
-                      reason: reason,
-                      recap: [..._noAptoRecap(), NoAptoRecapItem('Respuesta de alarma', reason)],
+                onVeredicto: (veredicto) => switch (veredicto.resultado) {
+                  Resultado.apto => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const Filtro1Screen()),
                     ),
-                  ),
-                ),
+                  Resultado.urgente => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const UrgencyScreen()),
+                    ),
+                  Resultado.noApto => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => NoAptoScreen(
+                          reason: veredicto.motivo ?? 'tu respuesta al filtro clinico',
+                          recap: [
+                            ..._noAptoRecap(),
+                            NoAptoRecapItem(
+                              'Respuesta de alarma',
+                              veredicto.motivo ?? 'tu respuesta al filtro clinico',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                },
               ),
             ),
           );

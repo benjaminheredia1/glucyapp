@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:glucy_app/app/router/rutas.dart';
 import 'package:glucy_app/doctor/doctor_login_screen.dart';
-import 'package:glucy_app/profile/profile.dart';
+import 'package:go_router/go_router.dart';
 
 /// Colores extraídos del diseño (Glucy AI)
 class GlucyColors {
@@ -51,11 +52,7 @@ class OnboardingScreen extends StatelessWidget {
     ),
   ];
 
-  void _empezar(BuildContext context) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const Profile()),
-    );
-  }
+  void _empezar(BuildContext context) => context.go(Rutas.filtroClinico);
 
   @override
   Widget build(BuildContext context) {

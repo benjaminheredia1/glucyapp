@@ -7,10 +7,14 @@ import '../../doctor/doctor_login_screen.dart';
 import '../../features/auth/domain/rol.dart';
 import '../../features/auth/domain/sesion.dart';
 import '../../features/auth/presentation/sesion_controller.dart';
+import '../../features/precalificacion/domain/veredicto.dart';
 import '../../home/home_screen.dart';
 import '../../onboarding/onboarding_screen.dart';
+import '../../onboarding/questions_components/clinical_filter_widget.dart';
 import '../../onboarding/questions_components/crear_cuenta_screen.dart';
+import '../../onboarding/questions_components/no_apto_screen.dart';
 import '../../onboarding/splash_screen.dart';
+import '../../warning/warning.dart';
 import 'rutas.dart';
 
 /// Reevalua las redirecciones cada vez que cambia la sesion.
@@ -35,7 +39,28 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: Rutas.loginMedico, builder: (_, __) => const DoctorLoginScreen()),
       GoRoute(path: Rutas.inicioPaciente, builder: (_, __) => const HomeScreen()),
       GoRoute(path: Rutas.inicioMedico, builder: (_, __) => const DashScreen()),
-      // El filtro clinico, /no-apto y /urgencia los registra la Task 15.
+      GoRoute(
+        path: Rutas.filtroClinico,
+        builder: (context, estado) => ClinicalFilterScreen(
+          onVeredicto: (veredicto) => switch (veredicto.resultado) {
+            Resultado.apto => context.go(Rutas.crearCuenta),
+            Resultado.urgente => context.go(Rutas.urgencia),
+            Resultado.noApto => context.go(
+                Rutas.noApto,
+                extra: veredicto.motivo ?? 'tu respuesta al filtro clinico',
+              ),
+          },
+        ),
+      ),
+      GoRoute(path: Rutas.urgencia, builder: (_, _) => const UrgencyScreen()),
+      GoRoute(
+        path: Rutas.noApto,
+        builder: (context, estado) => NoAptoScreen(
+          // El motivo lo redacta el backend, en `preguntas_precalificacion.motivo`.
+          reason: estado.extra as String? ?? 'tu respuesta al filtro clinico',
+          recap: const [],
+        ),
+      ),
     ],
     redirect: (context, estado) {
       final sesion = ref.read(sesionControllerProvider);
