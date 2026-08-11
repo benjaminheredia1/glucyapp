@@ -7,7 +7,7 @@ import '../storage/token_store.dart';
 import 'auth_interceptor.dart';
 import 'error_interceptor.dart';
 
-/// Lo sobrescribe la Task 10 con la renovacion real. Por defecto, no hay forma
+/// Lo sobrescribe la Task 12 con la renovacion real. Por defecto, no hay forma
 /// de renovar: un 401 cierra la sesion.
 final renovadorProvider = Provider<Renovador>((ref) => () async => null);
 

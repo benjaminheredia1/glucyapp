@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/error/fallo_api.dart';
 import '../../../core/network/auth_interceptor.dart';
 import '../../../core/storage/token_store.dart';
 import 'auth0_gateway.dart';
@@ -24,6 +23,13 @@ class RenovadorSesion {
   final TokenStore _store;
 
   /// `null` significa "no se pudo": el interceptor cierra sesion.
+  ///
+  /// El catch es total (no solo `FalloApi`) a proposito: `AuthInterceptor`
+  /// llama a esto sin su propio try/catch, encolado en un `QueuedInterceptor`.
+  /// Si algo escapara de aqui -- un `TypeError` al parsear una respuesta
+  /// malformada, un `PlatformException` del keystore al guardar -- la
+  /// peticion original se quedaria sin resolver para siempre y bloquearia
+  /// la cola de errores para cualquier 401 posterior.
   Future<String?> renovar() async {
     final accessToken = await _gateway.accessTokenVigente();
 
@@ -34,7 +40,7 @@ class RenovadorSesion {
       await _store.guardar(respuesta.token);
 
       return respuesta.token;
-    } on FalloApi {
+    } catch (_) {
       return null;
     }
   }
@@ -48,8 +54,9 @@ final renovadorSesionProvider = Provider<RenovadorSesion>(
   ),
 );
 
-/// Cierra el circulo: `dioProvider` lee `renovadorProvider`, que ahora apunta a
-/// la renovacion de verdad.
+/// La pieza que Task 12 usa para sobrescribir `renovadorProvider` en
+/// `main.dart` y asi cerrar el circulo: aqui todavia no hay override, solo
+/// se construye la renovacion de verdad para que esa tarea la enchufe.
 final renovadorRealProvider = Provider<Renovador>(
   (ref) => ref.watch(renovadorSesionProvider).renovar,
 );

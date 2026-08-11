@@ -185,5 +185,16 @@ void main() {
 
       expect(await renovador.renovar(), isNull);
     });
+
+    test('devuelve null si escapa algo que no es FalloApi, en vez de colgar la peticion', () async {
+      // Un `TypeError` al parsear una respuesta malformada, o un
+      // `PlatformException` del keystore al guardar, no son `FalloApi`.
+      // `AuthInterceptor` llama a `renovar()` sin su propio try/catch: si
+      // esto escapara, la peticion original nunca se resolveria.
+      authApi.error = StateError('respuesta malformada');
+      final renovador = RenovadorSesion(gateway: gateway, authApi: authApi, store: store);
+
+      expect(await renovador.renovar(), isNull);
+    });
   });
 }

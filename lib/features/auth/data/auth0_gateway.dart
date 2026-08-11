@@ -51,11 +51,14 @@ class Auth0GatewayReal implements Auth0Gateway {
 
   @override
   Future<String?> accessTokenVigente() async {
-    if (!await _auth0.credentialsManager.hasValidCredentials()) {
-      return null;
-    }
-
+    // `hasValidCredentials()` tambien cruza el canal de plataforma: si
+    // fallara, tiene que devolver `null` igual que un fallo de `credentials()`,
+    // no propagar. Por eso vive dentro del mismo try.
     try {
+      if (!await _auth0.credentialsManager.hasValidCredentials()) {
+        return null;
+      }
+
       final credenciales = await _auth0.credentialsManager.credentials();
 
       return credenciales.accessToken;
