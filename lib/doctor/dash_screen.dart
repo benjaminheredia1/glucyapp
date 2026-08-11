@@ -141,7 +141,13 @@ class DashScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 12),
                           SizedBox(
-                            height: 110,
+                            // 110 se quedaba corto: con el valor mas alto de
+                            // _weekVals la barra llega a los 80 de alto y,
+                            // sumando las dos etiquetas y sus espaciados,
+                            // el contenido pide 120. El test del router es
+                            // el primero en montar esta pantalla de verdad y
+                            // por eso el overflow (preexistente) recien se ve.
+                            height: 124,
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [

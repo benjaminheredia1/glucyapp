@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:glucy_app/app/router/rutas.dart';
 import 'package:glucy_app/onboarding/questions_components/clinical_filter_widget.dart';
-import 'package:glucy_app/onboarding/onboarding_screen.dart';
+import 'package:go_router/go_router.dart';
 
 
 class SplashScreen extends StatefulWidget {
@@ -25,17 +26,13 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 22200),
+      duration: const Duration(milliseconds: 1800),
     )..forward();
 
     _progressController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => OnboardingScreen(
-            ),
-          ),
-        );
+      if (status == AnimationStatus.completed && mounted) {
+        // El destino lo decide el redirect del router segun la sesion.
+        context.go(Rutas.onboarding);
       }
     });
   }
