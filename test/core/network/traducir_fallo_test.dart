@@ -73,11 +73,14 @@ void main() {
 
     test('429 lee Retry-After en segundos', () {
       final fallo = traducirFallo(conRespuesta(429, cabeceras: {
-        'retry-after': ['60'],
+        'retry-after': ['120'],
       }));
 
       expect(fallo, isA<FalloLimite>());
-      expect((fallo as FalloLimite).reintentarEn, const Duration(seconds: 60));
+      // 120 es deliberadamente distinto del default de 60 segundos (ver el
+      // siguiente test): si alguien "simplifica" esto de vuelta a 60, el
+      // test deja de distinguir entre leer la cabecera e ignorarla.
+      expect((fallo as FalloLimite).reintentarEn, const Duration(seconds: 120));
     });
 
     test('429 sin Retry-After usa un minuto', () {
