@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:glucy_app/doctor/doctor_data.dart';
 import 'package:glucy_app/doctor/inbox_screen.dart';
 
-/// Verificación en dos pasos exigida para el acceso profesional. Al
-/// completarse, limpia el stack: la Bandeja pasa a ser la raíz de
-/// navegación del portal médico.
+/// Segundo factor del portal medico.
+///
+/// Sin ruta y sin uso a proposito. El MFA se activa en el tenant de Auth0 y lo
+/// presenta Universal Login en el navegador del sistema, no la app: implementar
+/// aqui un OTP propio significaria guardar y verificar codigos por nuestra
+/// cuenta, que es justo lo que Auth0 evita. Cuando se active el MFA, esta
+/// pantalla se borra.
 class DoctorOtpScreen extends StatefulWidget {
   const DoctorOtpScreen({super.key});
 
