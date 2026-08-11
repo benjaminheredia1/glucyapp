@@ -16,6 +16,10 @@ abstract class EstadoFiltro with _$EstadoFiltro {
   const factory EstadoFiltro({
     required List<PreguntaFiltro> preguntas,
     required Map<int, bool> respuestas,
+    // Fallo de un `enviar()` anterior, para pintar un aviso sin tirar las
+    // respuestas ya dadas. Es de la pantalla, no de dominio: no viaja a la
+    // API ni se compara en tests salvo por su presencia.
+    Object? errorEnvio,
   }) = _EstadoFiltro;
 
   /// `evaluar` aborta con 422 si faltan respuestas: el envio se bloquea antes.
@@ -44,6 +48,13 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
 
   /// Devuelve `null` si falta responder algo o si el envio fallo. El veredicto
   /// lo calcula el servidor: aqui no hay ninguna regla clinica.
+  ///
+  /// Un fallo de `evaluar()` NO tira el estado a `AsyncError`: eso reemplazaria
+  /// el cuestionario entero por la pantalla de error, y su unico boton
+  /// (`ref.invalidate`) volveria a pedir las preguntas con `respuestas: {}` —
+  /// un blip de red a mitad del envio costaria las nueve respuestas. En vez
+  /// de eso, `actual` se conserva y el fallo se expone en `errorEnvio` para
+  /// que la pantalla lo pinte como aviso, sin perder nada.
   Future<Veredicto?> enviar({String? leadEmail}) async {
     final actual = state.value;
 
@@ -53,14 +64,8 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
       return await ref
           .read(precalificacionRepositoryProvider)
           .evaluar(actual.respuestas, leadEmail: leadEmail);
-    } catch (e, pila) {
-      // `copyWithPrevious` (para conservar `actual` junto al error) es
-      // `@internal` en riverpod 3.4.2: usarlo fuera del propio paquete
-      // dispara `invalid_use_of_internal_member`. La pantalla de error no lee
-      // el valor previo de todos modos (`estado.when` no pasa por
-      // `_contenido` en la rama `error`), asi que el `AsyncError` publico
-      // basta.
-      state = AsyncError<EstadoFiltro>(e, pila);
+    } catch (e) {
+      state = AsyncData(actual.copyWith(errorEnvio: e));
 
       return null;
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/router/rutas.dart';
 import '../../app/theme/glucy_palette.dart';
 import '../../core/error/fallo_api.dart';
 import '../../features/precalificacion/domain/veredicto.dart';
@@ -57,6 +58,14 @@ class ClinicalFilterScreen extends ConsumerWidget {
   Widget _contenido(BuildContext context, WidgetRef ref, EstadoFiltro filtro) {
     final notifier = ref.read(filtroClinicoControllerProvider.notifier);
 
+    // Un solo cierre para el CTA y para "Reintentar envio": reintentar un
+    // envio fallido es, literalmente, volver a llamar a enviar().
+    Future<void> enviarYNavegar() async {
+      final veredicto = await notifier.enviar();
+
+      if (veredicto != null) onVeredicto(veredicto);
+    }
+
     return Column(
       children: [
         _header(context, respondidas: filtro.respondidas, total: filtro.preguntas.length),
@@ -64,7 +73,7 @@ class ClinicalFilterScreen extends ConsumerWidget {
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
             itemCount: filtro.preguntas.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, i) {
               final pregunta = filtro.preguntas[i];
 
@@ -76,17 +85,35 @@ class ClinicalFilterScreen extends ConsumerWidget {
             },
           ),
         ),
-        _bottomCta(
-          habilitado: filtro.completo,
-          onEnviar: () async {
-            final veredicto = await notifier.enviar();
-
-            if (veredicto != null) onVeredicto(veredicto);
-          },
-        ),
+        if (filtro.errorEnvio case final error?)
+          _bannerEnvio(error, onReintentar: enviarYNavegar),
+        _bottomCta(habilitado: filtro.completo, onEnviar: enviarYNavegar),
       ],
     );
   }
+}
+
+// ---------- Aviso de un envio fallido: no reemplaza el cuestionario ----------
+//
+// A diferencia de `_errorConReintento` (que es para un fallo al CARGAR las
+// preguntas, donde no hay nada que conservar), este aviso vive junto a las
+// respuestas ya dadas. Reintentar llama a `enviar()` de nuevo, no invalida el
+// provider: invalidar volveria a pedir las preguntas con `respuestas: {}`.
+Widget _bannerEnvio(Object error, {required Future<void> Function() onReintentar}) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+    child: Column(
+      children: [
+        if (error is FalloApi) MensajeError(error) else Text('$error'),
+        const SizedBox(height: 8),
+        TextButton(
+          key: const Key('boton-reintentar-envio'),
+          onPressed: () => onReintentar(),
+          child: const Text('Reintentar envio'),
+        ),
+      ],
+    ),
+  );
 }
 
 // ---------- Header: volver, título, pills, descripción y barra de progreso ----------
@@ -99,7 +126,10 @@ Widget _header(BuildContext context, {required int respondidas, required int tot
         Row(
           children: [
             InkWell(
-              onTap: () => context.pop(),
+              // `context.go(Rutas.filtroClinico)` desde OnboardingScreen deja
+              // esta pantalla como unica en el stack: `pop()` a secas
+              // lanzaria `GoError('There is nothing to pop')`.
+              onTap: () => context.canPop() ? context.pop() : context.go(Rutas.onboarding),
               borderRadius: BorderRadius.circular(32),
               child: Container(
                 width: 32,

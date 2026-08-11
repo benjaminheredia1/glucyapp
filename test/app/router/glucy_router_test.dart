@@ -54,23 +54,38 @@ Usuario usuarioCon(Rol rol) => Usuario(id: 1, name: 'X', email: 'x@ejemplo.com',
 /// `router.go(Rutas.filtroClinico)` dispara una llamada real a traves de
 /// `appConfigProvider`, que este archivo no sobrescribe: este test solo
 /// verifica que la ruta es alcanzable, no el contenido de la pantalla.
+///
+/// `resultado` es configurable para las pruebas de "el veredicto rutea al
+/// destino correcto": traen una sola pregunta (para poder responderla y
+/// habilitar el envio) y `evaluar()` siempre devuelve ese `resultado`.
 class PrecalificacionRepositoryFalso implements PrecalificacionRepository {
+  PrecalificacionRepositoryFalso({this.resultado = Resultado.apto});
+
+  final Resultado resultado;
+
   @override
-  Future<List<PreguntaFiltro>> preguntas() async => const [];
+  Future<List<PreguntaFiltro>> preguntas() async =>
+      const [PreguntaFiltro(id: 1, codigo: 'q1', texto: 'Pregunta de prueba', orden: 1, version: 1)];
 
   @override
   Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) async =>
-      const Veredicto(id: 1, resultado: Resultado.apto);
+      Veredicto(id: 1, resultado: resultado, motivo: resultado == Resultado.apto ? null : 'motivo de prueba');
 
   @override
   Future<void> vincular(int precalificacionId) async {}
 }
 
-Future<GoRouter> montar(WidgetTester tester, Usuario? almacenada) async {
+Future<GoRouter> montar(
+  WidgetTester tester,
+  Usuario? almacenada, {
+  PrecalificacionRepository? precalificacion,
+}) async {
   final contenedor = ProviderContainer(
     overrides: [
       authRepositoryProvider.overrideWithValue(AuthRepositoryFalso(almacenada)),
-      precalificacionRepositoryProvider.overrideWithValue(PrecalificacionRepositoryFalso()),
+      precalificacionRepositoryProvider.overrideWithValue(
+        precalificacion ?? PrecalificacionRepositoryFalso(),
+      ),
     ],
   );
   addTearDown(contenedor.dispose);
@@ -86,6 +101,20 @@ Future<GoRouter> montar(WidgetTester tester, Usuario? almacenada) async {
   await tester.pumpAndSettle();
 
   return router;
+}
+
+/// Abre el filtro clinico, responde la unica pregunta del fake y toca "Ver mi
+/// resultado". Deja al router en el destino que le corresponda al
+/// `Resultado` configurado en `PrecalificacionRepositoryFalso`.
+Future<void> _completarFiltroClinico(WidgetTester tester, GoRouter router) async {
+  router.go(Rutas.filtroClinico);
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('Sí'));
+  await tester.pumpAndSettle();
+
+  await tester.tap(find.text('Ver mi resultado'));
+  await tester.pumpAndSettle();
 }
 
 String rutaActual(GoRouter router) =>
@@ -150,6 +179,46 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rutaActual(router), Rutas.filtroClinico);
+  });
+
+  // El unico sitio donde vive el switch `Resultado -> ruta` (Task 15). Sin
+  // estas pruebas, cambiar por ejemplo `Resultado.urgente` para que rutee a
+  // `Rutas.noApto` compilaria igual y el resto de la suite seguiria en
+  // verde: nada mas ejercita las tres ramas.
+  testWidgets('el veredicto apto navega a crear cuenta', (tester) async {
+    final router = await montar(
+      tester,
+      null,
+      precalificacion: PrecalificacionRepositoryFalso(resultado: Resultado.apto),
+    );
+
+    await _completarFiltroClinico(tester, router);
+
+    expect(rutaActual(router), Rutas.crearCuenta);
+  });
+
+  testWidgets('el veredicto urgente navega a la pantalla de urgencia', (tester) async {
+    final router = await montar(
+      tester,
+      null,
+      precalificacion: PrecalificacionRepositoryFalso(resultado: Resultado.urgente),
+    );
+
+    await _completarFiltroClinico(tester, router);
+
+    expect(rutaActual(router), Rutas.urgencia);
+  });
+
+  testWidgets('el veredicto no_apto navega a la pantalla de no apto', (tester) async {
+    final router = await montar(
+      tester,
+      null,
+      precalificacion: PrecalificacionRepositoryFalso(resultado: Resultado.noApto),
+    );
+
+    await _completarFiltroClinico(tester, router);
+
+    expect(rutaActual(router), Rutas.noApto);
   });
 
   // Las pruebas de arriba mueven el router con router.go(...) o dejan que el

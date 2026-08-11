@@ -34,7 +34,22 @@ class RepoFalso implements PrecalificacionRepository {
   Future<void> vincular(int precalificacionId) async => vinculadas++;
 }
 
-ProviderContainer contenedor(RepoFalso repo) {
+/// Solo para la prueba de `retry: null`: falla ya en `preguntas()`, que es lo
+/// unico que corre dentro de `build()`. `evaluar()`/`vincular()` no hace
+/// falta que hagan nada util, esa prueba nunca llega a llamarlos.
+class RepoFalsoQueFallaAlCargar implements PrecalificacionRepository {
+  @override
+  Future<List<PreguntaFiltro>> preguntas() async => throw const FalloRed();
+
+  @override
+  Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> vincular(int precalificacionId) async => throw UnimplementedError();
+}
+
+ProviderContainer contenedor(PrecalificacionRepository repo) {
   final c = ProviderContainer(
     overrides: [precalificacionRepositoryProvider.overrideWithValue(repo)],
   );
@@ -105,7 +120,11 @@ void main() {
     expect(repo.enviadas, isNull);
   });
 
-  test('un fallo al evaluar deja el estado en error y devuelve null', () async {
+  test('un fallo al evaluar conserva las respuestas, no las borra', () async {
+    // Fix del review de Task 15: la version original tiraba el estado a
+    // AsyncError, y el unico boton de esa pantalla (`ref.invalidate`) volvia
+    // a pedir las preguntas con `respuestas: {}` -- un blip de red a mitad
+    // del envio costaba las nueve respuestas.
     final repo = RepoFalso()..errorAlEvaluar = const FalloRed();
     final c = contenedor(repo);
     await c.read(filtroClinicoControllerProvider.future);
@@ -115,6 +134,49 @@ void main() {
     notifier.responder(2, true);
 
     expect(await notifier.enviar(), isNull);
-    expect(c.read(filtroClinicoControllerProvider).hasError, isTrue);
+
+    final estado = c.read(filtroClinicoControllerProvider);
+    expect(estado.hasError, isFalse);
+    expect(estado.value!.respuestas, {1: true, 2: true});
+    expect(estado.value!.errorEnvio, isA<FalloRed>());
   });
+
+  test('reintentar enviar() tras un fallo vuelve a mandar las mismas respuestas', () async {
+    final repo = RepoFalso()..errorAlEvaluar = const FalloRed();
+    final c = contenedor(repo);
+    await c.read(filtroClinicoControllerProvider.future);
+    final notifier = c.read(filtroClinicoControllerProvider.notifier);
+
+    notifier.responder(1, true);
+    notifier.responder(2, true);
+    await notifier.enviar();
+
+    repo.errorAlEvaluar = null;
+    final veredicto = await notifier.enviar();
+
+    expect(veredicto, isNotNull);
+    expect(repo.enviadas, {1: true, 2: true});
+  });
+
+  // Riverpod 3 reintenta un `build()` que lanza con backoff exponencial
+  // (hasta 10 veces, hasta ~38s) salvo que el provider declare `retry: null`.
+  // `filtroClinicoControllerProvider` lo declara (vease su archivo). Esta
+  // prueba es la que de verdad ejercita esa ruta: a diferencia de las de
+  // arriba, que fallan dentro de `enviar()` (nunca pasa por el retry de
+  // Riverpod), esta falla dentro de `preguntas()`, que es lo que corre en
+  // `build()`. El timeout corto es la aserción: sin `retry: null` esto
+  // tardaria decenas de segundos y el test fallaria por timeout, no por el
+  // valor del error.
+  test(
+    'un fallo de red al cargar las preguntas no reintenta con backoff',
+    () async {
+      final c = contenedor(RepoFalsoQueFallaAlCargar());
+
+      await expectLater(
+        c.read(filtroClinicoControllerProvider.future),
+        throwsA(isA<FalloRed>()),
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 5)),
+  );
 }
