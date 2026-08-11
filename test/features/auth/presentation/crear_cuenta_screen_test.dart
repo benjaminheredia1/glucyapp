@@ -72,6 +72,31 @@ void main() {
 
     expect(find.byKey(const Key('mensaje-error')), findsOneWidget);
     expect(find.text('El servidor tuvo un problema.'), findsOneWidget);
+
+    // Un error no debe dejar el boton bloqueado: el usuario tiene que poder
+    // reintentar sin recargar la pantalla.
+    final boton = tester.widget<FilledButton>(find.byKey(const Key('boton-acceder')));
+    expect(boton.onPressed, isNotNull);
+  });
+
+  testWidgets('un fallo de validacion muestra el mensaje del campo, no el generico', (tester) async {
+    final repo = AuthRepositoryFalso()
+      ..errorAlIniciar = const FalloValidacion(
+        'Los datos enviados no son validos.',
+        {
+          'email': ['El correo ya esta registrado.'],
+        },
+      );
+    await montar(tester, repo);
+
+    await tester.tap(find.byKey(const Key('boton-acceder')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('mensaje-error')), findsOneWidget);
+    expect(find.text('El correo ya esta registrado.'), findsOneWidget);
+    // Si MensajeError cayera al caso generico en vez de listar `errores`,
+    // veriamos este mensaje en su lugar.
+    expect(find.text('Los datos enviados no son validos.'), findsNothing);
   });
 
   testWidgets('un 503 explica que el proveedor no responde', (tester) async {
