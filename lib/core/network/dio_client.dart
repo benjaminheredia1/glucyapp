@@ -24,13 +24,29 @@ Interceptor _log() => LogInterceptor(
       requestHeader: false,
       requestBody: true,
       responseBody: true,
-      logPrint: (linea) => debugPrint(_redactar(linea.toString())),
+      logPrint: (linea) => debugPrint(redactarParaLog(linea.toString())),
     );
 
 /// El log no puede filtrar credenciales ni en desarrollo.
-String _redactar(String linea) => linea
-    .replaceAll(RegExp(r'(Bearer\s+)[\w\-\.|]+'), r'$1<redactado>')
-    .replaceAll(RegExp(r'("(?:password|token|accessToken)"\s*:\s*")[^"]*'), r'$1<redactado>');
+///
+/// `dioPublicoProvider` es quien hace el intercambio con Auth0, y esa
+/// respuesta llega en snake_case (`access_token`, `refresh_token`,
+/// `id_token`), no en el camelCase de esta app: si solo cubriéramos
+/// `accessToken` el token de Auth0 se imprimiria en claro.
+// `replaceAll(Pattern, String)` no expande `$1`: a diferencia de JS, Dart
+// trata el reemplazo como texto literal. Hace falta `replaceAllMapped` para
+// conservar el grupo capturado (el "Bearer " o el "clave":") y solo tapar
+// el valor.
+String _tapar(String linea, RegExp patron) =>
+    linea.replaceAllMapped(patron, (m) => '${m[1]}<redactado>');
+
+@visibleForTesting
+String redactarParaLog(String linea) => _tapar(
+      _tapar(linea, RegExp(r'(Bearer\s+)[\w\-\.|]+')),
+      RegExp(
+        r'("(?:password|token|accessToken|access_token|refresh_token|id_token)"\s*:\s*")[^"]*',
+      ),
+    );
 
 /// Cliente sin sesion. Lo usa `AuthApi` para el intercambio, que es publico y
 /// que no puede depender del interceptor que a su vez depende de el.
@@ -56,8 +72,15 @@ final dioProvider = Provider<Dio>((ref) {
     AuthInterceptor(
       store: ref.watch(tokenStoreProvider),
       renovar: ref.watch(renovadorProvider),
-      // El reintento comparte el transporte real de este cliente, no su
-      // lista de interceptors: ver el comentario en AuthInterceptor.
+      // `http_mock_adapter` no puede simular un Dio() completamente
+      // desnudo (solo se engancha a la instancia que le pasan), asi que
+      // AuthInterceptor acepta compartir el HttpClientAdapter del cliente
+      // que lo instala. Aqui, en produccion, eso significa que el
+      // reintento usa la misma pila de red real que ya usa el resto de la
+      // app -- no un stub de pruebas -- mientras que AuthInterceptor y
+      // ErrorInterceptor (los interceptors, no el adaptador) se quedan
+      // fuera: eso es lo que de verdad evita que el reintento vuelva a
+      // entrar en esta misma cadena.
       transporte: dio.httpClientAdapter,
     ),
   );
