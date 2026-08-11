@@ -1,17 +1,25 @@
 # glucy_app
 
-A new Flutter project.
+App de Glucy AI. El arranque, la configuracion y los requisitos estan en el
+[README de la raiz](../README.md).
 
-## Getting Started
+## Estructura
 
-This project is a starting point for a Flutter application.
+- `lib/app/` — tema, router y widget raiz.
+- `lib/core/` — configuracion, red, errores y almacenamiento seguro.
+- `lib/features/` — una carpeta por feature (`auth`, `precalificacion`), con
+  `data`, `domain` y `presentation`.
+- `lib/shared/` — widgets reutilizables entre features, como `MensajeError`.
+- `lib/onboarding/`, `lib/home/`, `lib/doctor/`, `lib/profile/`, `lib/warning/`
+  — pantallas heredadas de antes de esta migracion. Conectarlas a la API no
+  implica moverlas a `features/`: `crear_cuenta_screen.dart` y
+  `clinical_filter_widget.dart` (en `onboarding/questions_components/`) y
+  `doctor_login_screen.dart` (en `doctor/`) ya consumen `features/auth` y
+  `features/precalificacion` sin haber cambiado de carpeta. El resto de estas
+  carpetas sigue pendiente de conectarse.
 
-A few resources to get you started if this is your first Flutter project:
+Tras tocar una clase con `@freezed` o `@JsonSerializable`:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
