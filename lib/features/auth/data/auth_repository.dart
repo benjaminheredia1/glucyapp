@@ -61,13 +61,25 @@ class AuthRepository {
       // Salir tiene que funcionar aunque el servidor no conteste.
     }
 
-    await _store.borrar();
-    await _gateway.cerrarSesion();
+    // Cada limpieza local es independiente: que una falle (un canal de
+    // plataforma roto, por ejemplo) no puede impedir las demas, o un cierre
+    // de sesion parcial dejaria credenciales o respuestas clinicas de una
+    // persona expuestas a la siguiente en el mismo dispositivo.
+    try {
+      await _store.borrar();
+    } catch (_) {}
+
+    try {
+      await _gateway.cerrarSesion();
+    } catch (_) {}
+
     // Las respuestas del filtro clinico son de la persona que las respondio,
     // no del dispositivo: sin esto sobrevivirian a un cierre de sesion
     // explicito y se le mostrarian a quien abra el filtro despues en el
     // mismo telefono.
-    await _embudo.limpiar();
+    try {
+      await _embudo.limpiar();
+    } catch (_) {}
   }
 }
 

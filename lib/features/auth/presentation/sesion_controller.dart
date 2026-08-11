@@ -46,7 +46,15 @@ class SesionController extends AsyncNotifier<Sesion> {
 
   Future<void> cerrarSesion() async {
     state = const AsyncLoading();
-    await ref.read(authRepositoryProvider).cerrarSesion();
+
+    try {
+      await ref.read(authRepositoryProvider).cerrarSesion();
+    } catch (_) {
+      // Cerrar sesion tiene que completarse en la UI aunque algo de la
+      // limpieza local falle: quedarse en AsyncLoading dejaria el boton
+      // inerte, que es justo lo que este metodo existe para evitar.
+    }
+
     state = const AsyncData(Sesion.noAutenticado());
   }
 }
