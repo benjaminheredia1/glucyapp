@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Placeholder hasta que exista el tenant real; ver Task 10 en el plan. -->
+    <string name="auth0_domain">TU-TENANT.us.auth0.com</string>
+</resources>

@@ -23,6 +23,12 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // El SDK nativo de Auth0 (Auth0.Android) intercepta la vuelta de
+        // Universal Login con un Redirect Activity generado a partir de estos
+        // placeholders. Sin ellos, el manifest no sabe que scheme/host aceptar.
+        manifestPlaceholders["auth0Domain"] = "@string/auth0_domain"
+        manifestPlaceholders["auth0Scheme"] = "glucy"
     }
 
     buildTypes {
