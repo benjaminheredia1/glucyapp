@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -68,7 +66,11 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
     state = AsyncData(actual.copyWith(respuestas: respuestas));
 
     // Sin await: guardar el progreso no debe frenar la interaccion.
-    unawaited(ref.read(embudoStoreProvider).guardarProgreso(respuestas));
+    // `.ignore()`, no `unawaited(...)`: `unawaited` solo descarta el Future,
+    // no le pone un manejador -- un fallo aqui seguiria escapando como error
+    // asincrono sin dueño a nivel de zona. `.ignore()` es el idiom real de
+    // Dart para "que corra y que de verdad no importe el resultado".
+    ref.read(embudoStoreProvider).guardarProgreso(respuestas).ignore();
   }
 
   void escribirCorreo(String correo) {
@@ -100,8 +102,18 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
           .evaluar(actual.respuestas, leadEmail: actual.leadEmail);
 
       // Se guarda el id para que VinculadorPrecalificacion pueda atarla a la
-      // cuenta en cuanto el usuario entre con el mismo correo.
-      await ref.read(embudoStoreProvider).guardarPrecalificacion(veredicto.id);
+      // cuenta en cuanto el usuario entre con el mismo correo. Mejor
+      // esfuerzo, con su propio `catchError`: si esto falla, el servidor ya
+      // evaluo y persistio la precalificacion, asi que no es un fallo de
+      // envio. Tratarlo como uno dejaria el boton en "Reintentar", y
+      // reintentar aqui es volver a llamar a evaluar() -- creando una
+      // precalificacion duplicada en el servidor. Perder el id local es
+      // recuperable (VinculadorPrecalificacion simplemente no tendria nada
+      // que vincular); un envio duplicado no lo es.
+      await ref
+          .read(embudoStoreProvider)
+          .guardarPrecalificacion(veredicto.id)
+          .catchError((_) {});
 
       return veredicto;
     } catch (e) {

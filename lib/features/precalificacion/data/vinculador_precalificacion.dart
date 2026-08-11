@@ -35,9 +35,16 @@ class VinculadorPrecalificacion {
       } on FalloRed {
         // Puede que la sesion siga viva y el servidor no. Se conserva para
         // reintentarlo en el proximo acceso.
+      } on FalloServidor {
+        // 5xx: puede ser un despliegue a mitad de camino, no un rechazo. Se
+        // conserva igual que un fallo de red.
+      } on FalloLimite {
+        // 429: el throttle de la ruta, justo despues de crear la sesion. No
+        // es un rechazo del vinculo en si; se conserva para el proximo acceso.
       } on FalloApi {
-        // 403, 404 o 409: esa precalificacion no es de este usuario o ya
-        // estaba vinculada. Reintentarlo no la va a arreglar.
+        // 401/403, 404 o 409: la sesion no vale, esa precalificacion no es de
+        // este usuario, no existe o ya estaba vinculada. Reintentarlo no la
+        // va a arreglar.
         await _store.limpiar();
       }
     } catch (_) {

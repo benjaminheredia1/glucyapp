@@ -114,6 +114,26 @@ void main() {
     expect(await store.leerPrecalificacion(), 42);
   });
 
+  test('un fallo del servidor (5xx) tampoco limpia: puede ser un despliegue a mitad de camino', () async {
+    await store.guardarPrecalificacion(42);
+    repo.errorAlVincular = const FalloServidor();
+
+    await vinculador.vincularPendiente();
+
+    expect(store.limpiezas, 0);
+    expect(await store.leerPrecalificacion(), 42);
+  });
+
+  test('un 429 (throttle) tampoco limpia: no es un rechazo del vinculo en si', () async {
+    await store.guardarPrecalificacion(42);
+    repo.errorAlVincular = const FalloLimite(Duration(seconds: 30));
+
+    await vinculador.vincularPendiente();
+
+    expect(store.limpiezas, 0);
+    expect(await store.leerPrecalificacion(), 42);
+  });
+
   test('nunca propaga: entrar no puede fallar por esto', () async {
     await store.guardarPrecalificacion(42);
     repo.errorAlVincular = const FalloServidor();

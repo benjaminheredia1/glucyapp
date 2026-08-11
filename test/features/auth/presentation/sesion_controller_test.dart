@@ -7,6 +7,11 @@ import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/sesion.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
+import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
+import 'package:glucy_app/features/precalificacion/data/precalificacion_repository.dart';
+import 'package:glucy_app/features/precalificacion/data/vinculador_precalificacion.dart';
+import 'package:glucy_app/features/precalificacion/domain/pregunta_filtro.dart';
+import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
 
 const _maria = Usuario(id: 7, name: 'Maria', email: 'maria@ejemplo.com', rol: Rol.paciente);
 
@@ -40,8 +45,68 @@ class AuthRepositoryFalso implements AuthRepository {
   }
 }
 
-ProviderContainer contenedor(AuthRepositoryFalso repo) {
-  final c = ProviderContainer(overrides: [authRepositoryProvider.overrideWithValue(repo)]);
+/// Repo/store minimos, solo para satisfacer los tipos que pide el
+/// constructor de `VinculadorPrecalificacion`: esta suite es de
+/// `SesionController`, no de vinculacion, asi que a estos dobles no se les
+/// pide que hagan nada util.
+class _RepoInerte implements PrecalificacionRepository {
+  @override
+  Future<List<PreguntaFiltro>> preguntas() async => const [];
+
+  @override
+  Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> vincular(int precalificacionId) async {}
+}
+
+class _StoreInerte implements EmbudoStore {
+  @override
+  Future<void> guardarProgreso(Map<int, bool> respuestas) async {}
+
+  @override
+  Future<Map<int, bool>> leerProgreso() async => {};
+
+  @override
+  Future<void> guardarPrecalificacion(int id) async {}
+
+  @override
+  Future<int?> leerPrecalificacion() async => null;
+
+  @override
+  Future<void> limpiar() async {}
+}
+
+/// Doble por defecto: sin id pendiente, `vincularPendiente()` no hace nada.
+/// Sin esto, `contenedor()` deja el `vinculadorPrecalificacionProvider` real
+/// sin sobrescribir, y su cadena de dependencias (`precalificacionRepositoryProvider`
+/// -> ... -> `appConfigProvider`) revienta con `UnimplementedError` al no
+/// estar sobrescrita en esta suite -- Task 17 solo sobrevivia a esto porque
+/// `VinculadorPrecalificacion.vincularPendiente()` atrapa cualquier fallo, no
+/// porque el entorno de prueba estuviera realmente configurado.
+VinculadorPrecalificacion _vinculadorInerte() =>
+    VinculadorPrecalificacion(repo: _RepoInerte(), store: _StoreInerte());
+
+/// Para probar que `SesionController.iniciarSesion()` se blinda por su
+/// cuenta (Fix 3 del review): ni siquiera un fallo que escape por completo
+/// del propio `VinculadorPrecalificacion` (aqui, sobreescribiendo
+/// `vincularPendiente()` para que lance algo que no sea `FalloApi`) puede
+/// pisar el estado de sesion ya autenticada.
+class VinculadorPrecalificacionQueFalla extends VinculadorPrecalificacion {
+  VinculadorPrecalificacionQueFalla() : super(repo: _RepoInerte(), store: _StoreInerte());
+
+  @override
+  Future<void> vincularPendiente() async => throw StateError('fallo inesperado, no FalloApi');
+}
+
+ProviderContainer contenedor(AuthRepositoryFalso repo, {VinculadorPrecalificacion? vinculador}) {
+  final c = ProviderContainer(
+    overrides: [
+      authRepositoryProvider.overrideWithValue(repo),
+      vinculadorPrecalificacionProvider.overrideWithValue(vinculador ?? _vinculadorInerte()),
+    ],
+  );
   addTearDown(c.dispose);
 
   return c;
@@ -80,6 +145,17 @@ void main() {
     await c.read(sesionControllerProvider.notifier).iniciarSesion();
 
     expect(c.read(sesionControllerProvider).value, isA<SesionAutenticado>());
+  });
+
+  test('un fallo inesperado al vincular la precalificacion no tumba la sesion', () async {
+    final c = contenedor(AuthRepositoryFalso(), vinculador: VinculadorPrecalificacionQueFalla());
+    await c.read(sesionControllerProvider.future);
+
+    await c.read(sesionControllerProvider.notifier).iniciarSesion();
+
+    final sesion = c.read(sesionControllerProvider);
+    expect(sesion.value, isA<SesionAutenticado>());
+    expect(sesion.hasError, isFalse);
   });
 
   test('una cancelacion de Auth0 vuelve a noAutenticado sin error', () async {

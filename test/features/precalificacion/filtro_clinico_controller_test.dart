@@ -37,6 +37,25 @@ class EmbudoStoreFalso implements EmbudoStore {
   }
 }
 
+/// Para probar que un fallo al guardar el id localmente no se confunde con
+/// un fallo de envio: el servidor ya evaluo con exito en ese punto.
+class _EmbudoStoreQueFallaAlGuardarId implements EmbudoStore {
+  @override
+  Future<void> guardarProgreso(Map<int, bool> respuestas) async {}
+
+  @override
+  Future<Map<int, bool>> leerProgreso() async => {};
+
+  @override
+  Future<void> guardarPrecalificacion(int id) async => throw Exception('disco lleno');
+
+  @override
+  Future<int?> leerPrecalificacion() async => null;
+
+  @override
+  Future<void> limpiar() async {}
+}
+
 class RepoFalso implements PrecalificacionRepository {
   RepoFalso({this.veredicto = const Veredicto(id: 1, resultado: Resultado.apto)});
 
@@ -163,6 +182,23 @@ void main() {
     await notifier.enviar();
 
     expect(store.precalificacionId, 42);
+  });
+
+  test('un fallo al guardar el id localmente no marca error ni bloquea el envio', () async {
+    final repo = RepoFalso(veredicto: const Veredicto(id: 42, resultado: Resultado.apto));
+    final c = contenedor(repo, store: _EmbudoStoreQueFallaAlGuardarId());
+    await c.read(filtroClinicoControllerProvider.future);
+    final notifier = c.read(filtroClinicoControllerProvider.notifier);
+
+    notifier.responder(1, true);
+    notifier.responder(2, false);
+    notifier.escribirCorreo('maria@ejemplo.com');
+
+    final veredicto = await notifier.enviar();
+
+    expect(veredicto, isNotNull);
+    expect(veredicto!.id, 42);
+    expect(c.read(filtroClinicoControllerProvider).value!.errorEnvio, isNull);
   });
 
   test('responder dos veces la misma pregunta sustituye la respuesta', () async {

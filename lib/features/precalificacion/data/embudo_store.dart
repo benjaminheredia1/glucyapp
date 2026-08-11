@@ -52,8 +52,12 @@ class EmbudoStoreSeguro implements EmbudoStore {
       final mapa = jsonDecode(crudo) as Map<String, dynamic>;
 
       return mapa.map((k, v) => MapEntry(int.parse(k), v as bool));
-    } on FormatException {
-      // Formato viejo o corrupto: empezar limpio vale mas que reventar.
+    } catch (_) {
+      // Formato viejo o corrupto: empezar limpio vale mas que reventar. No
+      // solo `FormatException` (JSON invalido o clave no numerica): un JSON
+      // valido pero con otra forma (`"null"`, un valor que no sea booleano)
+      // llega aqui como `TypeError` por el `as Map<String, dynamic>` o el
+      // `as bool` de arriba, y sin este catch se escapaba sin capturar.
       await _almacen.delete(key: _claveProgreso);
 
       return {};
