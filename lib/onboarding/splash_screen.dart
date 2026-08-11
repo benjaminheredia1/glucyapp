@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:glucy_app/app/router/rutas.dart';
-import 'package:glucy_app/onboarding/questions_components/clinical_filter_widget.dart';
 import 'package:go_router/go_router.dart';
 
 
