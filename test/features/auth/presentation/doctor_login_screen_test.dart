@@ -16,6 +16,12 @@ class AuthRepositoryFalso implements AuthRepository {
   @override
   Future<Usuario> iniciarSesion() async {
     intentos++;
+    // Un retraso real (no solo microtasks) para que el estado de carga sea
+    // observable: `tester.tap` agota la cola de microtasks antes de volver,
+    // asi que un Future que resuelve sin espera real nunca deja ver el
+    // AsyncLoading intermedio. `tester.pump()` sin duracion no avanza el
+    // reloj falso, asi que este timer no dispara todavia.
+    await Future<void>.delayed(const Duration(milliseconds: 1));
     if (errorAlIniciar != null) throw errorAlIniciar!;
 
     return _doctor;
@@ -63,6 +69,25 @@ void main() {
     await tester.tap(find.byKey(const Key('boton-acceder-medico')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('mensaje-error')), findsOneWidget);
     expect(find.text('No hay conexion con el servidor.'), findsOneWidget);
+
+    // Un error no debe dejar el boton bloqueado: el usuario tiene que poder
+    // reintentar sin recargar la pantalla.
+    final boton = tester.widget<FilledButton>(find.byKey(const Key('boton-acceder-medico')));
+    expect(boton.onPressed, isNotNull);
+  });
+
+  testWidgets('mientras carga, el boton no admite otro toque', (tester) async {
+    final repo = AuthRepositoryFalso();
+    await montar(tester, repo);
+
+    await tester.tap(find.byKey(const Key('boton-acceder-medico')));
+    await tester.pump(); // en AsyncLoading, sin resolver todavia
+
+    final boton = tester.widget<FilledButton>(find.byKey(const Key('boton-acceder-medico')));
+    expect(boton.onPressed, isNull);
+
+    await tester.pumpAndSettle();
   });
 }
