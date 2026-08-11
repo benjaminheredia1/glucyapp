@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../precalificacion/data/vinculador_precalificacion.dart';
 import '../data/auth0_gateway.dart';
 import '../data/auth_repository.dart';
 import '../domain/sesion.dart';
@@ -20,6 +21,10 @@ class SesionController extends AsyncNotifier<Sesion> {
     try {
       final usuario = await ref.read(authRepositoryProvider).iniciarSesion();
       state = AsyncData(Sesion.autenticado(usuario));
+
+      // Recupera la precalificacion que se respondio antes de tener cuenta.
+      // No propaga: entrar no puede fallar por esto.
+      await ref.read(vinculadorPrecalificacionProvider).vincularPendiente();
     } on Auth0Cancelado {
       // Echarse atras en Universal Login no es un fallo que reportar.
       state = const AsyncData(Sesion.noAutenticado());

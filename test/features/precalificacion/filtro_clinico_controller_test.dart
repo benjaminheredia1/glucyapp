@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:glucy_app/core/error/fallo_api.dart';
+import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import 'package:glucy_app/features/precalificacion/data/precalificacion_repository.dart';
 import 'package:glucy_app/features/precalificacion/domain/pregunta_filtro.dart';
 import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
@@ -10,6 +11,31 @@ const _preguntas = [
   PreguntaFiltro(id: 1, codigo: 'q1', texto: 'Una', orden: 1, version: 1),
   PreguntaFiltro(id: 2, codigo: 'q2', texto: 'Dos', orden: 2, version: 1),
 ];
+
+/// Doble en memoria: el real usa flutter_secure_storage, que no tiene canal
+/// de plataforma en un test unitario puro.
+class EmbudoStoreFalso implements EmbudoStore {
+  Map<int, bool> progreso = {};
+  int? precalificacionId;
+
+  @override
+  Future<void> guardarProgreso(Map<int, bool> respuestas) async => progreso = respuestas;
+
+  @override
+  Future<Map<int, bool>> leerProgreso() async => progreso;
+
+  @override
+  Future<void> guardarPrecalificacion(int id) async => precalificacionId = id;
+
+  @override
+  Future<int?> leerPrecalificacion() async => precalificacionId;
+
+  @override
+  Future<void> limpiar() async {
+    progreso = {};
+    precalificacionId = null;
+  }
+}
 
 class RepoFalso implements PrecalificacionRepository {
   RepoFalso({this.veredicto = const Veredicto(id: 1, resultado: Resultado.apto)});
@@ -49,9 +75,12 @@ class RepoFalsoQueFallaAlCargar implements PrecalificacionRepository {
   Future<void> vincular(int precalificacionId) async => throw UnimplementedError();
 }
 
-ProviderContainer contenedor(PrecalificacionRepository repo) {
+ProviderContainer contenedor(PrecalificacionRepository repo, {EmbudoStore? store}) {
   final c = ProviderContainer(
-    overrides: [precalificacionRepositoryProvider.overrideWithValue(repo)],
+    overrides: [
+      precalificacionRepositoryProvider.overrideWithValue(repo),
+      embudoStoreProvider.overrideWithValue(store ?? EmbudoStoreFalso()),
+    ],
   );
   addTearDown(c.dispose);
 
@@ -73,12 +102,67 @@ void main() {
     final c = contenedor(RepoFalso());
     await c.read(filtroClinicoControllerProvider.future);
     final notifier = c.read(filtroClinicoControllerProvider.notifier);
+    notifier.escribirCorreo('maria@ejemplo.com');
 
     notifier.responder(1, true);
     expect(c.read(filtroClinicoControllerProvider).value!.completo, isFalse);
 
     notifier.responder(2, false);
     expect(c.read(filtroClinicoControllerProvider).value!.completo, isTrue);
+  });
+
+  test('el estado no esta completo sin un correo valido, aunque este todo respondido', () {
+    const estado = EstadoFiltro(preguntas: _preguntas, respuestas: {1: true, 2: false});
+
+    expect(estado.todasRespondidas, isTrue);
+    expect(estado.completo, isFalse);
+
+    expect(estado.copyWith(leadEmail: 'no-es-un-correo').completo, isFalse);
+    expect(estado.copyWith(leadEmail: 'maria@ejemplo.com').completo, isTrue);
+  });
+
+  test('build() restaura el progreso guardado por una sesion anterior', () async {
+    final store = EmbudoStoreFalso()..progreso = {1: true};
+    final c = contenedor(RepoFalso(), store: store);
+
+    final estado = await c.read(filtroClinicoControllerProvider.future);
+
+    expect(estado.respuestas, {1: true});
+  });
+
+  test('build() descarta progreso de preguntas que ya no existen en el cuestionario vigente', () async {
+    final store = EmbudoStoreFalso()..progreso = {1: true, 99: false};
+    final c = contenedor(RepoFalso(), store: store);
+
+    final estado = await c.read(filtroClinicoControllerProvider.future);
+
+    expect(estado.respuestas, {1: true});
+  });
+
+  test('responder() guarda el progreso en el EmbudoStore', () async {
+    final store = EmbudoStoreFalso();
+    final c = contenedor(RepoFalso(), store: store);
+    await c.read(filtroClinicoControllerProvider.future);
+    final notifier = c.read(filtroClinicoControllerProvider.notifier);
+
+    notifier.responder(1, true);
+
+    expect(store.progreso, {1: true});
+  });
+
+  test('enviar() con exito guarda el id del veredicto para vincularlo despues', () async {
+    final store = EmbudoStoreFalso();
+    final repo = RepoFalso(veredicto: const Veredicto(id: 42, resultado: Resultado.apto));
+    final c = contenedor(repo, store: store);
+    await c.read(filtroClinicoControllerProvider.future);
+    final notifier = c.read(filtroClinicoControllerProvider.notifier);
+
+    notifier.responder(1, true);
+    notifier.responder(2, false);
+    notifier.escribirCorreo('maria@ejemplo.com');
+    await notifier.enviar();
+
+    expect(store.precalificacionId, 42);
   });
 
   test('responder dos veces la misma pregunta sustituye la respuesta', () async {
@@ -100,6 +184,7 @@ void main() {
 
     notifier.responder(1, true);
     notifier.responder(2, false);
+    notifier.escribirCorreo('maria@ejemplo.com');
 
     final veredicto = await notifier.enviar();
 
@@ -132,6 +217,7 @@ void main() {
 
     notifier.responder(1, true);
     notifier.responder(2, true);
+    notifier.escribirCorreo('maria@ejemplo.com');
 
     expect(await notifier.enviar(), isNull);
 
@@ -149,6 +235,7 @@ void main() {
 
     notifier.responder(1, true);
     notifier.responder(2, true);
+    notifier.escribirCorreo('maria@ejemplo.com');
     await notifier.enviar();
 
     repo.errorAlEvaluar = null;

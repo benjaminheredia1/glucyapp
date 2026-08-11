@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../data/embudo_store.dart';
 import '../data/precalificacion_repository.dart';
 import '../domain/pregunta_filtro.dart';
 import '../domain/veredicto.dart';
@@ -16,6 +19,7 @@ abstract class EstadoFiltro with _$EstadoFiltro {
   const factory EstadoFiltro({
     required List<PreguntaFiltro> preguntas,
     required Map<int, bool> respuestas,
+    String? leadEmail,
     // Fallo de un `enviar()` anterior, para pintar un aviso sin tirar las
     // respuestas ya dadas. Es de la pantalla, no de dominio: no viaja a la
     // API ni se compara en tests salvo por su presencia.
@@ -23,7 +27,15 @@ abstract class EstadoFiltro with _$EstadoFiltro {
   }) = _EstadoFiltro;
 
   /// `evaluar` aborta con 422 si faltan respuestas: el envio se bloquea antes.
-  bool get completo => preguntas.isNotEmpty && respuestas.length == preguntas.length;
+  bool get todasRespondidas =>
+      preguntas.isNotEmpty && respuestas.length == preguntas.length;
+
+  /// El correo es obligatorio: sin el, `vincular` no puede cotejar nada y las
+  /// respuestas se perderian al crear la cuenta.
+  bool get correoValido =>
+      leadEmail != null && RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(leadEmail!);
+
+  bool get completo => todasRespondidas && correoValido;
 
   int get respondidas => respuestas.length;
 }
@@ -32,8 +44,19 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
   @override
   Future<EstadoFiltro> build() async {
     final preguntas = await ref.read(precalificacionRepositoryProvider).preguntas();
+    final guardadas = await ref.read(embudoStoreProvider).leerProgreso();
 
-    return EstadoFiltro(preguntas: preguntas, respuestas: const {});
+    // Solo se recuperan respuestas de preguntas que siguen activas: el
+    // cuestionario esta versionado y puede haber cambiado.
+    final vigentes = preguntas.map((p) => p.id).toSet();
+
+    return EstadoFiltro(
+      preguntas: preguntas,
+      respuestas: {
+        for (final e in guardadas.entries)
+          if (vigentes.contains(e.key)) e.key: e.value,
+      },
+    );
   }
 
   void responder(int preguntaId, bool si) {
@@ -41,13 +64,24 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
 
     if (actual == null) return;
 
-    state = AsyncData(
-      actual.copyWith(respuestas: {...actual.respuestas, preguntaId: si}),
-    );
+    final respuestas = {...actual.respuestas, preguntaId: si};
+    state = AsyncData(actual.copyWith(respuestas: respuestas));
+
+    // Sin await: guardar el progreso no debe frenar la interaccion.
+    unawaited(ref.read(embudoStoreProvider).guardarProgreso(respuestas));
   }
 
-  /// Devuelve `null` si falta responder algo o si el envio fallo. El veredicto
-  /// lo calcula el servidor: aqui no hay ninguna regla clinica.
+  void escribirCorreo(String correo) {
+    final actual = state.value;
+
+    if (actual == null) return;
+
+    state = AsyncData(actual.copyWith(leadEmail: correo.trim()));
+  }
+
+  /// Devuelve `null` si falta responder algo, falta el correo o si el envio
+  /// fallo. El veredicto lo calcula el servidor: aqui no hay ninguna regla
+  /// clinica.
   ///
   /// Un fallo de `evaluar()` NO tira el estado a `AsyncError`: eso reemplazaria
   /// el cuestionario entero por la pantalla de error, y su unico boton
@@ -55,15 +89,21 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
   /// un blip de red a mitad del envio costaria las nueve respuestas. En vez
   /// de eso, `actual` se conserva y el fallo se expone en `errorEnvio` para
   /// que la pantalla lo pinte como aviso, sin perder nada.
-  Future<Veredicto?> enviar({String? leadEmail}) async {
+  Future<Veredicto?> enviar() async {
     final actual = state.value;
 
     if (actual == null || !actual.completo) return null;
 
     try {
-      return await ref
+      final veredicto = await ref
           .read(precalificacionRepositoryProvider)
-          .evaluar(actual.respuestas, leadEmail: leadEmail);
+          .evaluar(actual.respuestas, leadEmail: actual.leadEmail);
+
+      // Se guarda el id para que VinculadorPrecalificacion pueda atarla a la
+      // cuenta en cuanto el usuario entre con el mismo correo.
+      await ref.read(embudoStoreProvider).guardarPrecalificacion(veredicto.id);
+
+      return veredicto;
     } catch (e) {
       state = AsyncData(actual.copyWith(errorEnvio: e));
 

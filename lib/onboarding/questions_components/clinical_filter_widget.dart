@@ -85,6 +85,24 @@ class ClinicalFilterScreen extends ConsumerWidget {
             },
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: TextFormField(
+            key: const Key('campo-correo-filtro'),
+            initialValue: filtro.leadEmail,
+            keyboardType: TextInputType.emailAddress,
+            autocorrect: false,
+            onChanged: notifier.escribirCorreo,
+            decoration: InputDecoration(
+              labelText: 'Tu correo',
+              helperText: 'Para guardar tu resultado y recuperarlo al crear la cuenta.',
+              helperMaxLines: 2,
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
         if (filtro.errorEnvio case final error?)
           _bannerEnvio(error, onReintentar: enviarYNavegar),
         _bottomCta(habilitado: filtro.completo, onEnviar: enviarYNavegar),

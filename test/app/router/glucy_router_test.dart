@@ -7,6 +7,7 @@ import 'package:glucy_app/features/auth/data/auth_repository.dart';
 import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
+import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import 'package:glucy_app/features/precalificacion/data/precalificacion_repository.dart';
 import 'package:glucy_app/features/precalificacion/domain/pregunta_filtro.dart';
 import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
@@ -75,6 +76,33 @@ class PrecalificacionRepositoryFalso implements PrecalificacionRepository {
   Future<void> vincular(int precalificacionId) async {}
 }
 
+/// El controlador del filtro tambien lee `embudoStoreProvider` al montarse
+/// (para restaurar progreso) y al responder (para guardarlo): sin este doble,
+/// el real pega a flutter_secure_storage y `pumpAndSettle` cuelga esperando
+/// una respuesta de un canal de plataforma que no existe en el test.
+class EmbudoStoreFalso implements EmbudoStore {
+  Map<int, bool> progreso = {};
+  int? precalificacionId;
+
+  @override
+  Future<void> guardarProgreso(Map<int, bool> respuestas) async => progreso = respuestas;
+
+  @override
+  Future<Map<int, bool>> leerProgreso() async => progreso;
+
+  @override
+  Future<void> guardarPrecalificacion(int id) async => precalificacionId = id;
+
+  @override
+  Future<int?> leerPrecalificacion() async => precalificacionId;
+
+  @override
+  Future<void> limpiar() async {
+    progreso = {};
+    precalificacionId = null;
+  }
+}
+
 Future<GoRouter> montar(
   WidgetTester tester,
   Usuario? almacenada, {
@@ -86,6 +114,7 @@ Future<GoRouter> montar(
       precalificacionRepositoryProvider.overrideWithValue(
         precalificacion ?? PrecalificacionRepositoryFalso(),
       ),
+      embudoStoreProvider.overrideWithValue(EmbudoStoreFalso()),
     ],
   );
   addTearDown(contenedor.dispose);
@@ -111,6 +140,10 @@ Future<void> _completarFiltroClinico(WidgetTester tester, GoRouter router) async
   await tester.pumpAndSettle();
 
   await tester.tap(find.text('Sí'));
+  await tester.pumpAndSettle();
+
+  // El correo (Task 17) tambien es obligatorio para habilitar el envio.
+  await tester.enterText(find.byKey(const Key('campo-correo-filtro')), 'maria@ejemplo.com');
   await tester.pumpAndSettle();
 
   await tester.tap(find.text('Ver mi resultado'));
