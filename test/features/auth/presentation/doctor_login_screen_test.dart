@@ -90,4 +90,17 @@ void main() {
 
     await tester.pumpAndSettle();
   });
+
+  testWidgets('un fallo que no es FalloApi tambien se muestra, no queda en silencio', (tester) async {
+    final repo = AuthRepositoryFalso()..errorAlIniciar = StateError('token corrupto en el almacen seguro');
+    await montar(tester, repo);
+
+    await tester.tap(find.byKey(const Key('boton-acceder-medico')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('token corrupto en el almacen seguro'), findsOneWidget);
+
+    final boton = tester.widget<FilledButton>(find.byKey(const Key('boton-acceder-medico')));
+    expect(boton.onPressed, isNotNull);
+  });
 }

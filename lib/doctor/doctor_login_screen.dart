@@ -79,8 +79,8 @@ class DoctorLoginScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    if (fallo is FalloApi) ...[
-                      MensajeError(fallo),
+                    if (fallo != null) ...[
+                      if (fallo is FalloApi) MensajeError(fallo) else Text('$fallo'),
                       const SizedBox(height: 14),
                     ],
                     SizedBox(

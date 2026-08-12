@@ -75,8 +75,8 @@ class CrearCuentaScreen extends ConsumerWidget {
                         style: TextStyle(fontSize: 13, height: 1.55, color: Color(0xA610262A)),
                       ),
                       const SizedBox(height: 18),
-                      if (fallo is FalloApi) ...[
-                        MensajeError(fallo),
+                      if (fallo != null) ...[
+                        if (fallo is FalloApi) MensajeError(fallo) else Text('$fallo'),
                         const SizedBox(height: 14),
                       ],
                       SizedBox(
