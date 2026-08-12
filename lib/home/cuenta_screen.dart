@@ -5,6 +5,7 @@ import 'package:glucy_app/home/editar_perfil_screen.dart';
 import 'package:glucy_app/home/faq_screen.dart';
 import 'package:glucy_app/home/patient_tabbar.dart';
 import 'package:glucy_app/home/suscripcion_screen.dart';
+import 'package:glucy_app/onboarding/questions_components/checkout_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/elegibilidad_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/estudios_screen.dart';
 
@@ -38,6 +39,8 @@ class CuentaScreen extends ConsumerWidget {
     _Row(Icons.description_outlined, 'Mi elegibilidad', 'Semáforo verde · 25 de julio',
         (ctx) => () => Navigator.of(ctx).push(MaterialPageRoute(builder: (_) => const ElegibilidadScreen()))),
     _Row(Icons.apartment_outlined, 'Clínica vinculada', 'Clínica San Rafael', (ctx) => () {}),
+    _Row(Icons.qr_code_2_outlined, 'Iniciar tratamiento', '12 días de prueba · pago por QR',
+        (ctx) => () => Navigator.of(ctx).push(MaterialPageRoute(builder: (_) => const CheckoutScreen()))),
     _Row(Icons.science_outlined, 'Mis estudios', '4 de 6 al día',
         (ctx) => () => Navigator.of(ctx).push(MaterialPageRoute(builder: (_) => const EstudiosScreen()))),
     _Row(Icons.help_outline, 'Ayuda y soporte', 'Preguntas frecuentes y contacto',

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:glucy_app/onboarding/questions_components/analisis_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/crear_cuenta_screen.dart';
 
 class GlucyColors {
@@ -108,6 +109,20 @@ class PrediagScreen extends StatelessWidget {
                                 if (s != _stats.last) const SizedBox(width: 9),
                               ],
                             ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AnalisisScreen())),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: GlucyColors.ink,
+                                side: const BorderSide(color: GlucyColors.cardBorder),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: const Text('Ver el detalle de cada valor', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                            ),
                           ),
                         ],
                       ),
