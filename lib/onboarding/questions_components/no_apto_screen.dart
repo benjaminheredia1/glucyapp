@@ -116,49 +116,55 @@ class NoAptoScreen extends StatelessWidget {
                 'Marcaste: $reason. El manejo remoto de la medicación no es seguro en esta condición.',
                 style: const TextStyle(fontSize: 13, height: 1.5, color: GlucyColors.muted),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'LO QUE YA REGISTRASTE',
-                style: TextStyle(
-                  fontFamily: 'Sora',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0x6B10262A),
-                  letterSpacing: 0.8,
+              // El filtro clinico corre antes de crear cuenta (flujo anonimo,
+              // vease glucy_router.dart): no hay perfil (nombre/edad/IMC) del
+              // que armar un recap todavia. Sin datos, se oculta la seccion
+              // entera en vez de mostrar la tarjeta blanca vacia.
+              if (recap.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'LO QUE YA REGISTRASTE',
+                  style: TextStyle(
+                    fontFamily: 'Sora',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0x6B10262A),
+                    letterSpacing: 0.8,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: GlucyColors.cardBorder),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    for (final item in recap) ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.label, style: const TextStyle(fontSize: 12.5, color: GlucyColors.muted)),
-                          const SizedBox(width: 14),
-                          Flexible(
-                            child: Text(
-                              item.value,
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: GlucyColors.ink),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(color: GlucyColors.cardBorder),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      for (final item in recap) ...[
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.label, style: const TextStyle(fontSize: 12.5, color: GlucyColors.muted)),
+                            const SizedBox(width: 14),
+                            Flexible(
+                              child: Text(
+                                item.value,
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: GlucyColors.ink),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      if (item != recap.last) const SizedBox(height: 10),
+                          ],
+                        ),
+                        if (item != recap.last) const SizedBox(height: 10),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 14),
               const Text(
                 'Queda guardado en tu cuenta. Si tu situación cambia, puedes retomar el filtro desde aquí.',
