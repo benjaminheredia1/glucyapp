@@ -12,8 +12,10 @@ class Auth0Cancelado implements Exception {
 /// todo lo de arriba sin canales de plataforma.
 abstract interface class Auth0Gateway {
   /// Abre Universal Login y devuelve el access token.
+  /// `conexion` salta la pantalla de Auth0 y va directo a ese proveedor
+  /// (p. ej. `google-oauth2`); sin ella, Universal Login muestra todos.
   /// Lanza [Auth0Cancelado] si el usuario se echa atras.
-  Future<String> iniciarSesion();
+  Future<String> iniciarSesion({String? conexion});
 
   /// Access token vigente, renovado en silencio con el refresh token.
   /// `null` si ya no hay credenciales utilizables.
@@ -33,11 +35,15 @@ class Auth0GatewayReal implements Auth0Gateway {
   static const _scopes = {'openid', 'profile', 'email', 'offline_access'};
 
   @override
-  Future<String> iniciarSesion() async {
+  Future<String> iniciarSesion({String? conexion}) async {
     try {
       final credenciales = await _auth0
           .webAuthentication(scheme: _config.auth0Scheme)
-          .login(audience: _config.auth0Audience, scopes: _scopes);
+          .login(
+            audience: _config.auth0Audience,
+            scopes: _scopes,
+            parameters: conexion == null ? const {} : {'connection': conexion},
+          );
 
       return credenciales.accessToken;
     } on WebAuthenticationException catch (e) {

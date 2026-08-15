@@ -21,7 +21,7 @@ class AuthRepositoryFalso implements AuthRepository {
   final Usuario? almacenada;
 
   @override
-  Future<Usuario> iniciarSesion() async => almacenada!;
+  Future<Usuario> iniciarSesion({String? conexion}) async => almacenada!;
 
   @override
   Future<Usuario?> restaurarSesion() async => almacenada;
@@ -40,7 +40,7 @@ class AuthRepositoryDinamica implements AuthRepository {
   Usuario? alIniciar;
 
   @override
-  Future<Usuario> iniciarSesion() async => alIniciar!;
+  Future<Usuario> iniciarSesion({String? conexion}) async => alIniciar!;
 
   @override
   Future<Usuario?> restaurarSesion() async => almacenada;
@@ -61,7 +61,7 @@ class AuthRepositoryQueNuncaResuelveAlIniciar implements AuthRepository {
   final Completer<Usuario> _pendiente = Completer<Usuario>();
 
   @override
-  Future<Usuario> iniciarSesion() => _pendiente.future;
+  Future<Usuario> iniciarSesion({String? conexion}) => _pendiente.future;
 
   @override
   Future<Usuario?> restaurarSesion() async => null;

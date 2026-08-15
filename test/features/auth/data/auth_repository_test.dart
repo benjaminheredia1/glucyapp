@@ -23,7 +23,7 @@ class Auth0GatewayFalso implements Auth0Gateway {
   Object? errorAlIniciar;
 
   @override
-  Future<String> iniciarSesion() async {
+  Future<String> iniciarSesion({String? conexion}) async {
     if (errorAlIniciar != null) throw errorAlIniciar!;
 
     return tokenLogin!;

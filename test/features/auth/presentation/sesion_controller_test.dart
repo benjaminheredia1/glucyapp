@@ -25,7 +25,7 @@ class AuthRepositoryFalso implements AuthRepository {
   int cierres = 0;
 
   @override
-  Future<Usuario> iniciarSesion() async {
+  Future<Usuario> iniciarSesion({String? conexion}) async {
     if (errorAlIniciar != null) throw errorAlIniciar!;
 
     return alIniciar ?? _maria;

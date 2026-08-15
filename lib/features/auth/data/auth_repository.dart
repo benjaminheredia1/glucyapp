@@ -29,8 +29,8 @@ class AuthRepository {
   final TokenStore _store;
   final EmbudoStore _embudo;
 
-  Future<Usuario> iniciarSesion() async {
-    final accessToken = await _gateway.iniciarSesion();
+  Future<Usuario> iniciarSesion({String? conexion}) async {
+    final accessToken = await _gateway.iniciarSesion(conexion: conexion);
     final respuesta = await _authApi.intercambiar(accessToken);
 
     await _store.guardar(respuesta.token);

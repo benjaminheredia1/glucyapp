@@ -107,6 +107,35 @@ class CrearCuentaScreen extends ConsumerWidget {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
+                          key: const Key('boton-google'),
+                          onPressed: cargando
+                              ? null
+                              : () => ref
+                                  .read(sesionControllerProvider.notifier)
+                                  .iniciarSesion(conexion: 'google-oauth2'),
+                          // La "G" multicolor oficial necesita un asset; hasta
+                          // tenerlo, una G sola en el azul de Google.
+                          icon: const Text(
+                            'G',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF4285F4),
+                            ),
+                          ),
+                          label: const Text('Continuar con Google'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: GlucyPalette.deep,
+                            side: const BorderSide(color: Color(0x1F052E33)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
                           key: const Key('boton-apple'),
                           // Apple Sign In se activa en el tenant de Auth0; no
                           // necesita cambios de codigo aqui.

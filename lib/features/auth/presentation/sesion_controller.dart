@@ -4,6 +4,7 @@ import '../../precalificacion/data/vinculador_precalificacion.dart';
 import '../data/auth0_gateway.dart';
 import '../data/auth_repository.dart';
 import '../domain/sesion.dart';
+import '../domain/usuario.dart';
 
 /// Unica fuente de verdad del estado de sesion. El router y las pantallas leen
 /// de aqui, nunca del almacenamiento ni de la API directamente.
@@ -15,11 +16,11 @@ class SesionController extends AsyncNotifier<Sesion> {
     return usuario == null ? const Sesion.noAutenticado() : Sesion.autenticado(usuario);
   }
 
-  Future<void> iniciarSesion() async {
+  Future<void> iniciarSesion({String? conexion}) async {
     state = const AsyncLoading();
 
     try {
-      final usuario = await ref.read(authRepositoryProvider).iniciarSesion();
+      final usuario = await ref.read(authRepositoryProvider).iniciarSesion(conexion: conexion);
       state = AsyncData(Sesion.autenticado(usuario));
     } on Auth0Cancelado {
       // Echarse atras en Universal Login no es un fallo que reportar.
@@ -42,6 +43,12 @@ class SesionController extends AsyncNotifier<Sesion> {
     } catch (_) {
       // No propaga: entrar no puede fallar por esto.
     }
+  }
+
+  /// Refresca el usuario en memoria tras editar el perfil, sin otra llamada a
+  /// la API: el PATCH ya devolvio la cuenta actualizada.
+  void fijarUsuario(Usuario usuario) {
+    state = AsyncData(Sesion.autenticado(usuario));
   }
 
   Future<void> cerrarSesion() async {
