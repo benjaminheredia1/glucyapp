@@ -1,3 +1,4 @@
+import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,6 +66,10 @@ final dioPublicoProvider = Provider<Dio>((ref) {
 
   dio.interceptors.add(ErrorInterceptor());
 
+  // Chucker NO se instala aqui a proposito: este cliente hace el intercambio
+  // con Auth0 y el inspector guardaria el access token en claro en el
+  // dispositivo, la misma fuga que `crearInterceptorLog` cierra apagando
+  // `requestBody`.
   if (config.logHttp && kDebugMode) {
     dio.interceptors.add(crearInterceptorLog());
   }
@@ -97,6 +102,11 @@ final dioProvider = Provider<Dio>((ref) {
 
   if (config.logHttp && kDebugMode) {
     dio.interceptors.add(crearInterceptorLog());
+    // Inspector en el dispositivo: burbuja tras cada peticion, lista con
+    // request/response completos. Solo en debug y bajo el mismo LOG_HTTP.
+    // Muestra la cabecera Authorization (Bearer de Sanctum local): asumible
+    // en desarrollo, y el intercambio de Auth0 queda fuera (ver arriba).
+    dio.interceptors.add(ChuckerDioInterceptor());
   }
 
   return dio;

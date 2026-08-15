@@ -1,3 +1,4 @@
+import 'package:chucker_flutter/chucker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,6 +32,9 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: Rutas.splash,
     refreshListenable: notificador,
+    // Deja que la burbuja de Chucker abra su pantalla de inspeccion sobre el
+    // navigator raiz. En release no hace nada (showOnRelease=false).
+    navigatorKey: ChuckerFlutter.navigatorKey,
     routes: [
       GoRoute(path: Rutas.splash, builder: (_, __) => const SplashScreen()),
       GoRoute(path: Rutas.onboarding, builder: (_, __) => const OnboardingScreen()),

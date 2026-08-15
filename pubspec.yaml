@@ -45,6 +45,21 @@ dependencies:
   flutter_dotenv: ^6.0.1
   flutter_secure_storage: ^11.0.0
   auth0_flutter: ^2.6.0
+  # Inspector HTTP en el dispositivo. Solo actua en debug (showOnRelease=false).
+  chucker_flutter: ^1.9.2
+  # Selector de PDF/imagen para subir estudios medicos. La 12 ya no arrastra
+  # win32 y convive con share_plus 13.
+  file_picker: ^12.0.0
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+
+# chucker_flutter pide share_plus ^12, que arrastra win32 ^5 y choca con el
+# win32 ^6 de flutter_secure_storage. share_plus 13 ya usa win32 ^6: subirlo
+# aqui destraba el resolver. Si chucker publica una version con share_plus 13,
+# este override sobra.
+dependency_overrides:
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:
