@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
+import 'package:glucy_app/features/planes/plan_api.dart';
 import 'package:glucy_app/onboarding/questions_components/diag_pend_screen.dart';
 
 class GlucyColors {
@@ -23,12 +26,47 @@ class _Paso {
   const _Paso(this.numero, this.titulo, this.sub);
 }
 
-/// Prueba de 12 días y pago por QR: resume lo que incluye el plan, la
-/// linea de tiempo de los proximos 13 dias y el metodo de pago (pantalla
-/// 15 del catalogo). El cobro solo se activa el dia 13, y nunca si el
-/// medico no aprueba el ingreso.
-class CheckoutScreen extends StatelessWidget {
+/// Prueba gratuita y pago por QR: resume lo que incluye el plan, la
+/// linea de tiempo del ciclo y el metodo de pago (pantalla 15 del
+/// catalogo). Precio y dias de prueba salen de `/planes`; el cobro solo
+/// se activa al terminar la prueba, y nunca si el medico no aprueba.
+class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
+
+  @override
+  ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
+  Plan? _plan;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarPlan();
+  }
+
+  Future<void> _cargarPlan() async {
+    try {
+      final planes = await ref.read(planApiProvider).disponibles();
+
+      if (mounted && planes.isNotEmpty) setState(() => _plan = planes.first);
+    } on FalloApi {
+      // Sin plan cargado la pantalla muestra los textos por defecto.
+    }
+  }
+
+  int get _diasPrueba => _plan?.diasPrueba ?? 12;
+
+  String get _lineaPrecio {
+    final plan = _plan;
+
+    if (plan == null) return '  hoy · luego USD 25 al mes';
+
+    final precio = plan.precio % 1 == 0 ? plan.precio.toStringAsFixed(0) : plan.precio.toStringAsFixed(2);
+
+    return '  hoy · luego ${plan.moneda} $precio ${plan.periodicidad == 'anual' ? 'al año' : 'al mes'}';
+  }
 
   static const _beneficios = [
     _Beneficio('Un médico revisa, edita y firma tu plan'),
@@ -85,21 +123,21 @@ class CheckoutScreen extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(color: GlucyColors.accent, borderRadius: BorderRadius.circular(999)),
-                                child: const Text('12 días gratis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: GlucyColors.deep)),
+                                child: Text('$_diasPrueba días gratis', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: GlucyColors.deep)),
                               ),
                               const Text('sin tarjeta', style: TextStyle(fontSize: 11, color: Color(0x99F4FAF9))),
                             ],
                           ),
                           const SizedBox(height: 10),
-                          const Text.rich(
+                          Text.rich(
                             TextSpan(
                               children: [
                                 TextSpan(
-                                    text: 'USD 0',
-                                    style: TextStyle(fontFamily: 'Sora', fontSize: 27, fontWeight: FontWeight.w700, color: Colors.white)),
+                                    text: '${_plan?.moneda ?? 'USD'} 0',
+                                    style: const TextStyle(fontFamily: 'Sora', fontSize: 27, fontWeight: FontWeight.w700, color: Colors.white)),
                                 TextSpan(
-                                    text: '  hoy · luego USD 25 al mes',
-                                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xB8F4FAF9))),
+                                    text: _lineaPrecio,
+                                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xB8F4FAF9))),
                               ],
                             ),
                           ),
@@ -230,7 +268,7 @@ class CheckoutScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('Empezar mis 12 días gratis', style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700)),
+                      child: Text('Empezar mis $_diasPrueba días gratis', style: const TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700)),
                     ),
                   ),
                   const SizedBox(height: 8),

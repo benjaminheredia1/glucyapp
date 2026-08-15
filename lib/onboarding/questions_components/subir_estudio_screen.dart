@@ -1,6 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:glucy_app/onboarding/questions_components/estudios_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/lab_domicilio_screen.dart';
+
+enum StudyStatus { done, pending, rejected }
+
+/// Ficha estatica de un estudio para esta pantalla de carga guiada.
+/// (EstudiosScreen ya trabaja contra la API; esto queda para el flujo del
+/// ciclo, que aun es una maqueta.)
+class StudyItem {
+  final int n;
+  final String name;
+  final String subtitle; // qué mide
+  final String banner; // por qué importa
+  final StudyStatus status;
+  final String detail;
+
+  const StudyItem({
+    required this.n,
+    required this.name,
+    required this.subtitle,
+    required this.banner,
+    required this.status,
+    this.detail = '',
+  });
+}
 
 /// Colores del diseño Glucy AI
 class GlucyColors {

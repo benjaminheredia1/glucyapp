@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
+import 'package:glucy_app/features/mediciones/medicion_api.dart';
 import 'package:glucy_app/home/reg_ok_screen.dart';
 
 class GlucyColors {
@@ -11,26 +14,32 @@ class GlucyColors {
 }
 
 /// Registro diario de glucosa: teclado numérico propio (para replicar el
-/// diseño) + selector de momento de medición.
-class RegistrarScreen extends StatefulWidget {
+/// diseño) + selector de momento de medición. Persiste en `POST /mediciones`;
+/// el backend asigna el ciclo activo y dispara las alertas.
+class RegistrarScreen extends ConsumerStatefulWidget {
   const RegistrarScreen({super.key});
 
   @override
-  State<RegistrarScreen> createState() => _RegistrarScreenState();
+  ConsumerState<RegistrarScreen> createState() => _RegistrarScreenState();
 }
 
-class _RegistrarScreenState extends State<RegistrarScreen> {
+class _RegistrarScreenState extends ConsumerState<RegistrarScreen> {
   String _entry = '';
   String _moment = 'ayunas';
+  bool _guardando = false;
 
+  // Etiqueta visible → valor del enum `momento` del backend.
   static const _moments = [
     ('ayunas', 'En ayunas'),
-    ('antes', 'Antes de comer'),
-    ('despues', '2 h después'),
+    ('preprandial', 'Antes de comer'),
+    ('postprandial', '2 h después'),
   ];
 
   int get _entryNum => int.tryParse(_entry) ?? 0;
   bool get _inRange => _entryNum > 0 && _entryNum <= 130;
+
+  /// El backend acepta 10–900 mg/dL; por debajo de 10 es un error de tipeo.
+  bool get _valida => _entryNum >= 10 && _entryNum <= 900;
 
   void _tap(String key) {
     setState(() {
@@ -40,6 +49,30 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
         _entry = (_entry + key).length <= 3 ? _entry + key : _entry;
       }
     });
+  }
+
+  Future<void> _guardar() async {
+    if (!_valida || _guardando) return;
+
+    setState(() => _guardando = true);
+
+    try {
+      await ref.read(medicionApiProvider).registrar(
+            valor: _entryNum.toDouble(),
+            momento: _moment,
+          );
+
+      if (!mounted) return;
+
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegOkScreen(glucoseEntry: _entry)));
+    } on FalloApi catch (fallo) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('No se pudo guardar: ${fallo.mensaje}')));
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
   }
 
   @override
@@ -146,15 +179,19 @@ class _RegistrarScreenState extends State<RegistrarScreen> {
               ),
               const SizedBox(height: 14),
               ElevatedButton(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegOkScreen(glucoseEntry: _entry.isEmpty ? '—' : _entry))),
+                onPressed: _valida && !_guardando ? _guardar : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _entryNum > 0 ? GlucyColors.primary : GlucyColors.primary.withValues(alpha: 0.35),
+                  backgroundColor: GlucyColors.primary,
+                  disabledBackgroundColor: GlucyColors.primary.withValues(alpha: 0.35),
                   foregroundColor: Colors.white,
+                  disabledForegroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Guardar medición', style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700)),
+                child: _guardando
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Guardar medición', style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700)),
               ),
             ],
           ),

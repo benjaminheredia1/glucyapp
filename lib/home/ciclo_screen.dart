@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:glucy_app/home/ajuste_screen.dart';
-import 'package:glucy_app/onboarding/questions_components/estudios_screen.dart';
+import 'package:glucy_app/onboarding/questions_components/estudios_screen.dart' show EstudiosScreen;
 import 'package:glucy_app/onboarding/questions_components/subir_estudio_screen.dart';
 
 class GlucyColors {

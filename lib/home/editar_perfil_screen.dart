@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
+import 'package:glucy_app/features/auth/domain/sesion.dart';
+import 'package:glucy_app/features/auth/domain/usuario.dart';
+import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
+import 'package:glucy_app/features/perfil/perfil_api.dart';
 
 class GlucyColors {
   static const deep = Color(0xFF052E33);
@@ -17,21 +24,26 @@ class _Pref {
   _Pref(this.title, this.sub, this.on);
 }
 
-/// Datos personales y preferencias de notificación de la cuenta.
-class EditarPerfilScreen extends StatefulWidget {
+/// Datos personales y preferencias de notificación de la cuenta. Nombre,
+/// teléfono y los datos clínicos persisten en `PATCH /perfil`.
+class EditarPerfilScreen extends ConsumerStatefulWidget {
   const EditarPerfilScreen({super.key});
 
   @override
-  State<EditarPerfilScreen> createState() => _EditarPerfilScreenState();
+  ConsumerState<EditarPerfilScreen> createState() => _EditarPerfilScreenState();
 }
 
-class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
-  final _nombre = TextEditingController(text: 'María Torres');
-  final _telefono = TextEditingController(text: '+51 987 654 321');
-  final _nacimiento = TextEditingController(text: '14/03/1968');
-  final _sexo = TextEditingController(text: 'Femenino');
-  final _talla = TextEditingController(text: '162');
-  final _peso = TextEditingController(text: '74');
+class _EditarPerfilScreenState extends ConsumerState<EditarPerfilScreen> {
+  final _nombre = TextEditingController();
+  final _apellido = TextEditingController();
+  final _telefono = TextEditingController();
+  final _talla = TextEditingController();
+  final _peso = TextEditingController();
+
+  DateTime? _nacimiento;
+  String? _sexo; // 'femenino' | 'masculino', valores del backend
+  bool _cargando = true;
+  bool _guardando = false;
 
   final List<_Pref> _prefs = [
     _Pref('Recordatorios de medicación', 'Aviso 10 min antes de cada toma', true),
@@ -40,16 +52,109 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    // La sesion ya trae nombre y telefono; los clinicos llegan con /user.
+    final usuario = switch (ref.read(sesionControllerProvider).value) {
+      SesionAutenticado(:final usuario) => usuario,
+      _ => null,
+    };
+
+    _nombre.text = usuario?.name ?? '';
+    _apellido.text = usuario?.apellidoPaterno ?? '';
+    _telefono.text = usuario?.telefono ?? '';
+
+    try {
+      final perfil = await ref.read(perfilApiProvider).obtener();
+      final paciente = perfil.paciente;
+
+      if (!mounted || paciente == null) return;
+
+      setState(() {
+        _nacimiento = paciente.fechaNacimiento;
+        _sexo = paciente.sexo == 'femenino' || paciente.sexo == 'masculino' ? paciente.sexo : null;
+        _talla.text = paciente.tallaCm?.toString() ?? '';
+        _peso.text = paciente.pesoKg == null
+            ? ''
+            : paciente.pesoKg!.toStringAsFixed(paciente.pesoKg! % 1 == 0 ? 0 : 1);
+      });
+    } on FalloApi {
+      // Sin red se edita igual con lo que la sesion ya sabe.
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  @override
   void dispose() {
-    for (final c in [_nombre, _telefono, _nacimiento, _sexo, _talla, _peso]) {
+    for (final c in [_nombre, _apellido, _telefono, _talla, _peso]) {
       c.dispose();
     }
     super.dispose();
   }
 
-  void _guardar() {
-    Navigator.of(context).pop();
+  Future<void> _elegirNacimiento() async {
+    final hoy = DateTime.now();
+    final elegido = await showDatePicker(
+      context: context,
+      initialDate: _nacimiento ?? DateTime(hoy.year - 30),
+      firstDate: DateTime(hoy.year - 120),
+      lastDate: hoy,
+      helpText: 'Fecha de nacimiento',
+      builder: (context, hijo) => Theme(
+        data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: GlucyColors.primary)),
+        child: hijo!,
+      ),
+    );
+
+    if (elegido != null) setState(() => _nacimiento = elegido);
   }
+
+  Future<void> _guardar() async {
+    if (_nombre.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('El nombre no puede quedar vacío.')));
+
+      return;
+    }
+
+    setState(() => _guardando = true);
+
+    try {
+      final perfil = await ref.read(perfilApiProvider).actualizar(
+            name: _nombre.text.trim(),
+            apellidoPaterno: _apellido.text.trim(),
+            telefono: _telefono.text.trim(),
+            fechaNacimiento: _nacimiento,
+            sexo: _sexo,
+            tallaCm: int.tryParse(_talla.text),
+            pesoKg: double.tryParse(_peso.text),
+          );
+
+      ref.read(sesionControllerProvider.notifier).fijarUsuario(perfil.usuario);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Perfil guardado')));
+      Navigator.of(context).pop();
+    } on FalloApi catch (fallo) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('No se pudo guardar: ${fallo.mensaje}')));
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  String get _nacimientoTexto => _nacimiento == null
+      ? ''
+      : '${_nacimiento!.day.toString().padLeft(2, '0')}/${_nacimiento!.month.toString().padLeft(2, '0')}/${_nacimiento!.year}';
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +186,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
+              child: _cargando
+                  ? const Center(child: CircularProgressIndicator(color: GlucyColors.primary))
+                  : SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -93,13 +200,13 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                           height: 72,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(color: GlucyColors.tealBg, shape: BoxShape.circle),
-                          child: const Text('MT', style: TextStyle(fontFamily: 'Sora', fontSize: 24, fontWeight: FontWeight.w700, color: GlucyColors.primary)),
-                        ),
-                        const SizedBox(height: 9),
-                        OutlinedButton(
-                          onPressed: () {},
-                          style: OutlinedButton.styleFrom(foregroundColor: GlucyColors.primary, side: const BorderSide(color: Color(0x4D0A7C86)), padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7)),
-                          child: const Text('Cambiar foto', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                          child: Text(
+                            switch (ref.watch(sesionControllerProvider).value) {
+                              SesionAutenticado(:final usuario) => usuario.iniciales,
+                              _ => '?',
+                            },
+                            style: const TextStyle(fontFamily: 'Sora', fontSize: 24, fontWeight: FontWeight.w700, color: GlucyColors.primary),
+                          ),
                         ),
                       ],
                     ),
@@ -110,23 +217,38 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: GlucyColors.cardBorder), borderRadius: BorderRadius.circular(14)),
                       child: Column(
                         children: [
-                          _field('Nombre completo', _nombre),
-                          const SizedBox(height: 12),
-                          _field('Teléfono móvil', _telefono),
-                          const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(child: _field('Nacimiento', _nacimiento)),
+                              Expanded(child: _field('Nombre', _nombre)),
                               const SizedBox(width: 12),
-                              Expanded(child: _field('Sexo', _sexo)),
+                              Expanded(child: _field('Apellido', _apellido)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _field('Teléfono móvil', _telefono, keyboard: TextInputType.phone),
+                          const SizedBox(height: 12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _campoNacimiento()),
+                              const SizedBox(width: 12),
+                              Expanded(child: _campoSexo()),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Expanded(child: _field('Talla (cm)', _talla)),
+                              Expanded(
+                                child: _field('Talla (cm)', _talla,
+                                    keyboard: TextInputType.number,
+                                    formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)]),
+                              ),
                               const SizedBox(width: 12),
-                              Expanded(child: _field('Peso (kg)', _peso)),
+                              Expanded(
+                                child: _field('Peso (kg)', _peso,
+                                    keyboard: const TextInputType.numberWithOptions(decimal: true),
+                                    formatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}\.?\d{0,2}$'))]),
+                              ),
                             ],
                           ),
                         ],
@@ -192,7 +314,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
               decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: GlucyColors.cardBorder))),
               child: ElevatedButton(
-                onPressed: _guardar,
+                onPressed: _cargando || _guardando ? null : _guardar,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: GlucyColors.primary,
                   foregroundColor: Colors.white,
@@ -200,7 +322,9 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Guardar cambios', style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700)),
+                child: _guardando
+                    ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Guardar cambios', style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700)),
               ),
             ),
           ],
@@ -209,7 +333,74 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     );
   }
 
-  Widget _field(String label, TextEditingController controller) {
+  Widget _campoNacimiento() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Nacimiento', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0x8010262A))),
+        const SizedBox(height: 5),
+        InkWell(
+          onTap: _elegirNacimiento,
+          borderRadius: BorderRadius.circular(9),
+          child: InputDecorator(
+            decoration: _decoracion(hintText: 'Elegir fecha'),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _nacimientoTexto.isEmpty ? 'Elegir fecha' : _nacimientoTexto,
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: _nacimientoTexto.isEmpty ? const Color(0x7310262A) : GlucyColors.ink),
+                ),
+                const Icon(Icons.calendar_today_outlined, size: 15, color: GlucyColors.primary),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _campoSexo() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Sexo', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0x8010262A))),
+        const SizedBox(height: 5),
+        DropdownButtonFormField<String>(
+          initialValue: _sexo,
+          decoration: _decoracion(),
+          hint: const Text('Elegir', style: TextStyle(fontSize: 13.5, color: Color(0x7310262A))),
+          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: GlucyColors.ink),
+          items: const [
+            DropdownMenuItem(value: 'femenino', child: Text('Mujer')),
+            DropdownMenuItem(value: 'masculino', child: Text('Hombre')),
+          ],
+          onChanged: (v) => setState(() => _sexo = v),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _decoracion({String? hintText}) => InputDecoration(
+        filled: true,
+        fillColor: GlucyColors.bg,
+        isDense: true,
+        hintText: hintText,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 11),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: Color(0x17052E33))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: Color(0x17052E33))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: GlucyColors.primary, width: 1.5)),
+      );
+
+  Widget _field(
+    String label,
+    TextEditingController controller, {
+    TextInputType? keyboard,
+    List<TextInputFormatter>? formatters,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -217,16 +408,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
         const SizedBox(height: 5),
         TextField(
           controller: controller,
+          keyboardType: keyboard,
+          inputFormatters: formatters,
           style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500, color: GlucyColors.ink),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: GlucyColors.bg,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 11),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: Color(0x17052E33))),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: Color(0x17052E33))),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(9), borderSide: const BorderSide(color: GlucyColors.primary, width: 1.5)),
-          ),
+          decoration: _decoracion(),
         ),
       ],
     );
