@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:glucy_app/doctor/doctor_data.dart';
 import 'package:glucy_app/doctor/doctor_tabbar.dart';
+import 'package:glucy_app/doctor/validar_estudios_screen.dart';
 
 class _Kpi {
   final String value;
@@ -74,6 +75,35 @@ class DashScreen extends StatelessWidget {
                           if (k != _kpis.last) const SizedBox(width: 9),
                         ],
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.of(context)
+                          .push(MaterialPageRoute(builder: (_) => const ValidarEstudiosScreen())),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(color: DoctorColors.tealBg, borderRadius: BorderRadius.circular(12)),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.fact_check_outlined, size: 20, color: DoctorColors.primary),
+                            SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Estudios por validar',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: DoctorColors.deep)),
+                                  Text('Aprueba o rechaza las cargas de tus pacientes',
+                                      style: TextStyle(fontSize: 11.5, color: DoctorColors.tealText)),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, size: 18, color: DoctorColors.primary),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Container(
