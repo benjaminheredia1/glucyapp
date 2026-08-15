@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "com.example.glucy_app"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage exige compilar contra el SDK 37; el valor de
+    // flutter.compileSdkVersion (36) se queda corto hasta que Flutter lo suba.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
