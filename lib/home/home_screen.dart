@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/features/auth/domain/sesion.dart';
+import 'package:glucy_app/features/auth/domain/usuario.dart';
+import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
 import 'package:glucy_app/home/notifs_screen.dart';
 import 'package:glucy_app/home/patient_tabbar.dart';
 import 'package:glucy_app/home/plan_screen.dart';
@@ -28,14 +32,23 @@ class _HomeAction {
 /// Panel principal del paciente ya en seguimiento: última glucosa, acciones
 /// rápidas y estado de los turnos de medición. Punto de llegada del embudo
 /// de ingreso (splash → … → diagnóstico → aquí).
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   static const _readings = [166, 154, 149, 141, 138, 132, 124];
   static const _days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
+  static String _saludo(int hora) =>
+      hora < 12 ? 'Buenos días,' : hora < 19 ? 'Buenas tardes,' : 'Buenas noches,';
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // El router solo deja llegar aqui autenticado; el caso por defecto cubre
+    // el frame de transicion durante un cierre de sesion.
+    final nombre = switch (ref.watch(sesionControllerProvider).value) {
+      SesionAutenticado(:final usuario) => usuario.nombreCompleto,
+      _ => '',
+    };
     final actions = [
       _HomeAction(
         label: 'Registrar',
@@ -70,11 +83,16 @@ class HomeScreen extends StatelessWidget {
               child: Row(
                 children: [
                   const SizedBox(width: 42),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       children: [
-                        Text('Buenos días,', style: TextStyle(fontSize: 12.5, color: Color(0x8010262A))),
-                        Text('María Torres', style: TextStyle(fontFamily: 'Sora', fontSize: 21, fontWeight: FontWeight.w700, color: GlucyColors.deep)),
+                        Text(_saludo(DateTime.now().hour), style: const TextStyle(fontSize: 12.5, color: Color(0x8010262A))),
+                        Text(
+                          nombre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontFamily: 'Sora', fontSize: 21, fontWeight: FontWeight.w700, color: GlucyColors.deep),
+                        ),
                       ],
                     ),
                   ),

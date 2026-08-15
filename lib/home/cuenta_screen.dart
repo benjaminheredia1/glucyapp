@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/features/auth/domain/sesion.dart';
+import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
 import 'package:glucy_app/home/editar_perfil_screen.dart';
 import 'package:glucy_app/home/faq_screen.dart';
@@ -60,6 +62,11 @@ class CuentaScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final usuario = switch (ref.watch(sesionControllerProvider).value) {
+      SesionAutenticado(:final usuario) => usuario,
+      _ => null,
+    };
+
     return Scaffold(
       backgroundColor: GlucyColors.bg,
       body: SafeArea(
@@ -89,21 +96,29 @@ class CuentaScreen extends ConsumerWidget {
                             height: 52,
                             alignment: Alignment.center,
                             decoration: const BoxDecoration(color: GlucyColors.tealBg, shape: BoxShape.circle),
-                            child: const Text('MT', style: TextStyle(fontFamily: 'Sora', fontSize: 17, fontWeight: FontWeight.w700, color: GlucyColors.primary)),
+                            child: Text(usuario?.iniciales ?? '?',
+                                style: const TextStyle(fontFamily: 'Sora', fontSize: 17, fontWeight: FontWeight.w700, color: GlucyColors.primary)),
                           ),
                           const SizedBox(width: 13),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('María Torres', style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700, color: GlucyColors.deep)),
-                                const Text('58 años · maria.torres@correo.com', style: TextStyle(fontSize: 12, color: Color(0x8C10262A))),
+                                Text(usuario?.nombreCompleto ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700, color: GlucyColors.deep)),
+                                Text(usuario?.email ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12, color: Color(0x8C10262A))),
                                 const SizedBox(height: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                                  decoration: BoxDecoration(color: GlucyColors.tealBg, borderRadius: BorderRadius.circular(999)),
-                                  child: const Text('Verificado', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: GlucyColors.primary)),
-                                ),
+                                if (usuario?.emailVerificadoEn != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                    decoration: BoxDecoration(color: GlucyColors.tealBg, borderRadius: BorderRadius.circular(999)),
+                                    child: const Text('Verificado', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: GlucyColors.primary)),
+                                  ),
                               ],
                             ),
                           ),
