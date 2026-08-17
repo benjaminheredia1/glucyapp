@@ -6,6 +6,7 @@ import '../../precalificacion/data/embudo_store.dart';
 import '../domain/usuario.dart';
 import 'auth0_gateway.dart';
 import 'auth_api.dart';
+import 'dto/respuesta_sesion.dart';
 import 'usuario_api.dart';
 
 /// Orquesta las tres operaciones de sesion. La presentacion no sabe que hay un
@@ -29,9 +30,39 @@ class AuthRepository {
   final TokenStore _store;
   final EmbudoStore _embudo;
 
-  Future<Usuario> iniciarSesion({String? conexion}) async {
+  /// Identidad temporal para correr el embudo sin cuenta. Su token es la
+  /// unica credencial: se guarda donde el de la cuenta real.
+  Future<Usuario> entrarComoAnonimo() async {
+    final respuesta = await _authApi.anonimo();
+    await _store.guardar(respuesta.token);
+
+    return respuesta.usuario;
+  }
+
+  /// Con `reclamar` (por defecto) y un token guardado, ese token viaja como
+  /// Bearer y el backend convierte la identidad anonima en la cuenta real.
+  /// El portal medico llama con `reclamar: false`: un doctor nunca reclama.
+  Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async {
     final accessToken = await _gateway.iniciarSesion(conexion: conexion);
-    final respuesta = await _authApi.intercambiar(accessToken);
+
+    final guardado = reclamar ? await _store.leer() : null;
+    final tokenAnonimo = (guardado == null || guardado.isEmpty) ? null : guardado;
+
+    RespuestaSesion respuesta;
+
+    try {
+      respuesta = await _authApi.intercambiar(accessToken, tokenAnonimo: tokenAnonimo);
+    } on FalloAuth {
+      // 401 con Bearer anonimo: ese token ya no vale (purga o revocacion).
+      // Se borra y se entra sin el; lo cargado como anonimo se perdio. Sin
+      // Bearer, un 401 es el access token de Auth0 y se propaga tal cual.
+      // 409 (FalloConflicto) y 422 no pasan por aqui: se propagan y el token
+      // anonimo se conserva.
+      if (tokenAnonimo == null) rethrow;
+
+      await _store.borrar();
+      respuesta = await _authApi.intercambiar(accessToken);
+    }
 
     await _store.guardar(respuesta.token);
 

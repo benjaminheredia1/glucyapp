@@ -13,6 +13,7 @@ import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import '../../../core/network/auth_interceptor_test.dart' show TokenStoreFalso;
 
 const _maria = Usuario(id: 7, name: 'Maria', email: 'maria@ejemplo.com', rol: Rol.paciente);
+const _anonimo = Usuario(id: 1, name: 'Paciente', rol: Rol.paciente, esTemporal: true);
 
 class Auth0GatewayFalso implements Auth0Gateway {
   Auth0GatewayFalso({this.tokenLogin = 'auth0-nuevo', this.tokenVigente = 'auth0-vigente'});
@@ -41,15 +42,34 @@ class AuthApiFalsa implements AuthApi {
 
   String token;
   Object? error;
+  // Fallo solo en la primera llamada CON Bearer anonimo, para probar el
+  // reintento sin Bearer.
+  Object? errorConBearer;
   int llamadas = 0;
+  int altasAnonimas = 0;
   String? ultimoAccessToken;
+  String? ultimoTokenAnonimo;
+  final List<String?> bearersEnviados = [];
 
   @override
-  Future<RespuestaSesion> intercambiar(String accessToken, {String dispositivo = 'api'}) async {
+  Future<RespuestaSesion> anonimo({String dispositivo = 'api'}) async {
+    altasAnonimas++;
+    if (error != null) throw error!;
+    return RespuestaSesion(token: '1|anon', usuario: _anonimo);
+  }
+
+  @override
+  Future<RespuestaSesion> intercambiar(
+    String accessToken, {
+    String dispositivo = 'api',
+    String? tokenAnonimo,
+  }) async {
     llamadas++;
     ultimoAccessToken = accessToken;
+    ultimoTokenAnonimo = tokenAnonimo;
+    bearersEnviados.add(tokenAnonimo);
+    if (tokenAnonimo != null && errorConBearer != null) throw errorConBearer!;
     if (error != null) throw error!;
-
     return RespuestaSesion(token: token, usuario: _maria);
   }
 }
@@ -132,6 +152,77 @@ void main() {
       gateway.errorAlIniciar = const Auth0Cancelado();
 
       await expectLater(repo.iniciarSesion(), throwsA(isA<Auth0Cancelado>()));
+    });
+  });
+
+  group('entrarComoAnonimo', () {
+    test('crea la identidad, guarda su token y devuelve el usuario temporal', () async {
+      final usuario = await repo.entrarComoAnonimo();
+
+      expect(usuario.esTemporal, isTrue);
+      expect(authApi.altasAnonimas, 1);
+      expect(await store.leer(), '1|anon');
+    });
+
+    test('si la API falla, no deja token guardado', () async {
+      authApi.error = const FalloLimite(Duration(seconds: 30));
+
+      await expectLater(repo.entrarComoAnonimo(), throwsA(isA<FalloLimite>()));
+      expect(await store.leer(), isNull);
+    });
+  });
+
+  group('iniciarSesion reclamando la identidad anonima', () {
+    test('con token guardado lo manda como Bearer y lo sustituye por el real', () async {
+      await store.guardar('1|anon');
+
+      final usuario = await repo.iniciarSesion();
+
+      expect(usuario, _maria);
+      expect(authApi.ultimoTokenAnonimo, '1|anon');
+      expect(await store.leer(), 'sanctum-nuevo');
+    });
+
+    test('sin token guardado no manda Bearer', () async {
+      await repo.iniciarSesion();
+
+      expect(authApi.ultimoTokenAnonimo, isNull);
+    });
+
+    test('reclamar: false nunca manda Bearer aunque haya token', () async {
+      await store.guardar('1|anon');
+
+      await repo.iniciarSesion(reclamar: false);
+
+      expect(authApi.ultimoTokenAnonimo, isNull);
+      expect(await store.leer(), 'sanctum-nuevo');
+    });
+
+    test('un 409 se propaga como FalloConflicto y conserva el token anonimo', () async {
+      await store.guardar('1|anon');
+      authApi.errorConBearer = const FalloConflicto('Ya existe una cuenta con este correo.');
+
+      await expectLater(repo.iniciarSesion(), throwsA(isA<FalloConflicto>()));
+      expect(await store.leer(), '1|anon');
+      expect(authApi.llamadas, 1);
+    });
+
+    test('un 401 con Bearer anonimo borra el token y reintenta sin Bearer una vez', () async {
+      await store.guardar('1|anon-muerto');
+      authApi.errorConBearer = const FalloAuth('El token de la sesion no es valido.');
+
+      final usuario = await repo.iniciarSesion();
+
+      expect(usuario, _maria);
+      expect(authApi.bearersEnviados, ['1|anon-muerto', null]);
+      expect(await store.leer(), 'sanctum-nuevo');
+    });
+
+    test('un 401 sin Bearer anonimo (Auth0 invalido) se propaga sin reintentar', () async {
+      authApi.error = const FalloAuth('Access token de Auth0 invalido.');
+
+      await expectLater(repo.iniciarSesion(), throwsA(isA<FalloAuth>()));
+      expect(authApi.llamadas, 1);
     });
   });
 
