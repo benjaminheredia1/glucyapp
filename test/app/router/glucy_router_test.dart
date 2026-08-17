@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:glucy_app/app/router/glucy_router.dart';
 import 'package:glucy_app/app/router/rutas.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
 import 'package:glucy_app/features/auth/data/auth_repository.dart';
 import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
@@ -13,6 +14,7 @@ import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import 'package:glucy_app/features/precalificacion/data/precalificacion_repository.dart';
 import 'package:glucy_app/features/precalificacion/domain/pregunta_filtro.dart';
 import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
+import 'package:glucy_app/shared/widgets/mensaje_error.dart';
 import 'package:glucy_app/onboarding/questions_components/crear_cuenta_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/filtro1_screen.dart';
 import 'package:go_router/go_router.dart';
@@ -21,12 +23,19 @@ class AuthRepositoryFalso implements AuthRepository {
   AuthRepositoryFalso(this.almacenada);
 
   final Usuario? almacenada;
+  Object? errorAnonimo;
+  int altasAnonimas = 0;
 
   @override
   Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async => almacenada!;
 
   @override
-  Future<Usuario> entrarComoAnonimo() async => throw UnimplementedError();
+  Future<Usuario> entrarComoAnonimo() async {
+    altasAnonimas++;
+    if (errorAnonimo != null) throw errorAnonimo!;
+
+    return _anonima;
+  }
 
   @override
   Future<Usuario?> restaurarSesion() async => almacenada;
@@ -128,10 +137,11 @@ Future<GoRouter> montar(
   WidgetTester tester,
   Usuario? almacenada, {
   PrecalificacionRepository? precalificacion,
+  AuthRepositoryFalso? auth,
 }) async {
   final contenedor = ProviderContainer(
     overrides: [
-      authRepositoryProvider.overrideWithValue(AuthRepositoryFalso(almacenada)),
+      authRepositoryProvider.overrideWithValue(auth ?? AuthRepositoryFalso(almacenada)),
       precalificacionRepositoryProvider.overrideWithValue(
         precalificacion ?? PrecalificacionRepositoryFalso(),
       ),
@@ -220,6 +230,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rutaActual(router), Rutas.login);
+  });
+
+  testWidgets('Empezar sin sesion crea la identidad anonima y va a tu perfil', (tester) async {
+    final repo = AuthRepositoryFalso(null);
+    final router = await montar(tester, null, auth: repo);
+    expect(rutaActual(router), Rutas.onboarding);
+
+    await tester.ensureVisible(find.text('Empezar es gratis'));
+    await tester.tap(find.text('Empezar es gratis'));
+    await tester.pumpAndSettle();
+
+    expect(repo.altasAnonimas, 1);
+    expect(rutaActual(router), Rutas.perfil);
+  });
+
+  testWidgets('Empezar con sesion temporal ya creada va directo a tu perfil', (tester) async {
+    final repo = AuthRepositoryFalso(_anonima);
+    final router = await montar(tester, _anonima, auth: repo);
+
+    await tester.ensureVisible(find.text('Empezar es gratis'));
+    await tester.tap(find.text('Empezar es gratis'));
+    await tester.pumpAndSettle();
+
+    expect(repo.altasAnonimas, 0);
+    expect(rutaActual(router), Rutas.perfil);
+  });
+
+  testWidgets('si crear la identidad falla, onboarding muestra el error y no navega', (tester) async {
+    final repo = AuthRepositoryFalso(null)..errorAnonimo = const FalloLimite(Duration(seconds: 30));
+    final router = await montar(tester, null, auth: repo);
+
+    await tester.ensureVisible(find.text('Empezar es gratis'));
+    await tester.tap(find.text('Empezar es gratis'));
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.onboarding);
+    expect(find.byType(MensajeError), findsOneWidget);
   });
 
   testWidgets('una identidad temporal aterriza en onboarding, no en inicio', (tester) async {

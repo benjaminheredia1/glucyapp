@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:glucy_app/app/router/rutas.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
 import 'package:glucy_app/doctor/doctor_login_screen.dart';
+import 'package:glucy_app/features/auth/domain/sesion.dart';
+import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
+import 'package:glucy_app/shared/widgets/mensaje_error.dart';
 import 'package:go_router/go_router.dart';
 
 /// Colores extraídos del diseño (Glucy AI)
@@ -31,7 +36,7 @@ class OnboardingBenefit {
   });
 }
 
-class OnboardingScreen extends StatelessWidget {
+class OnboardingScreen extends ConsumerWidget {
   const OnboardingScreen({super.key});
 
   static const List<OnboardingBenefit> _benefits = [
@@ -52,10 +57,30 @@ class OnboardingScreen extends StatelessWidget {
     ),
   ];
 
-  void _empezar(BuildContext context) => context.go(Rutas.filtroClinico);
+  /// Flujo del prototipo: onboarding -> Tu perfil -> filtro clinico. Todo el
+  /// embudo corre con una identidad temporal (POST /auth/anonimo) que se crea
+  /// aqui, al empezar, y no en el arranque: quien solo abre la app o entra al
+  /// portal medico no deja una cuenta basura.
+  Future<void> _empezar(BuildContext context, WidgetRef ref) async {
+    final sesion = ref.read(sesionControllerProvider).value;
+
+    // Ya hay identidad (temporal o real): al perfil sin pedir otra.
+    if (sesion is! SesionAutenticado) {
+      await ref.read(sesionControllerProvider.notifier).entrarComoAnonimo();
+
+      if (!context.mounted) return;
+      if (ref.read(sesionControllerProvider).hasError) return;
+    }
+
+    context.go(Rutas.perfil);
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<Sesion> sesion = ref.watch(sesionControllerProvider);
+    final cargando = sesion.isLoading;
+    final fallo = sesion.error;
+
     return Scaffold(
       backgroundColor: GlucyColors.bg,
       body: Column(
@@ -123,10 +148,14 @@ class OnboardingScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
             child: Column(
               children: [
+                if (fallo != null) ...[
+                  if (fallo is FalloApi) MensajeError(fallo) else Text('$fallo'),
+                  const SizedBox(height: 10),
+                ],
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => _empezar(context),
+                    onPressed: cargando ? null : () => _empezar(context, ref),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: GlucyColors.primary,
                       foregroundColor: Colors.white,
@@ -137,14 +166,20 @@ class OnboardingScreen extends StatelessWidget {
                         side: const BorderSide(color: GlucyColors.primary),
                       ),
                     ),
-                    child: const Text(
-                      'Empezar es gratis',
-                      style: TextStyle(
-                        fontFamily: 'Sora',
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                    child: cargando
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text(
+                            'Empezar es gratis',
+                            style: TextStyle(
+                              fontFamily: 'Sora',
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 8),
