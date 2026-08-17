@@ -7,6 +7,7 @@ import '../../doctor/dash_screen.dart';
 import '../../doctor/doctor_login_screen.dart';
 import '../../features/auth/domain/rol.dart';
 import '../../features/auth/domain/sesion.dart';
+import '../../features/auth/domain/usuario.dart';
 import '../../features/auth/presentation/sesion_controller.dart';
 import '../../features/precalificacion/domain/veredicto.dart';
 import '../../home/home_screen.dart';
@@ -16,6 +17,7 @@ import '../../onboarding/questions_components/crear_cuenta_screen.dart';
 import '../../onboarding/questions_components/filtro1_screen.dart';
 import '../../onboarding/questions_components/no_apto_screen.dart';
 import '../../onboarding/splash_screen.dart';
+import '../../profile/profile.dart';
 import '../../warning/warning.dart';
 import 'rutas.dart';
 
@@ -39,6 +41,7 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: Rutas.splash, builder: (_, __) => const SplashScreen()),
       GoRoute(path: Rutas.onboarding, builder: (_, __) => const OnboardingScreen()),
+      GoRoute(path: Rutas.perfil, builder: (_, __) => const Profile()),
       GoRoute(path: Rutas.crearCuenta, builder: (_, __) => const CrearCuentaScreen()),
       GoRoute(path: Rutas.login, builder: (_, __) => const CrearCuentaScreen()),
       GoRoute(path: Rutas.loginMedico, builder: (_, __) => const DoctorLoginScreen()),
@@ -97,13 +100,25 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
         SesionNoAutenticado() => Rutas.publicas.contains(destino)
             ? (destino == Rutas.splash ? Rutas.onboarding : null)
             : Rutas.login,
-        SesionAutenticado(:final usuario) => _destinoAutenticado(usuario.rol, destino),
+        SesionAutenticado(:final usuario) => _destinoAutenticado(usuario, destino),
       };
     },
   );
 });
 
-String? _destinoAutenticado(Rol rol, String destino) {
+String? _destinoAutenticado(Usuario usuario, String destino) {
+  // Identidad temporal (POST /auth/anonimo): vive en el embudo, que son las
+  // rutas publicas. Inicio y portal medico son de cuenta real; si cae ahi,
+  // vuelve al principio del embudo.
+  if (usuario.esTemporal) {
+    if (Rutas.publicas.contains(destino)) {
+      return destino == Rutas.splash ? Rutas.onboarding : null;
+    }
+
+    return Rutas.onboarding;
+  }
+
+  final rol = usuario.rol;
   final inicio = rol == Rol.paciente ? Rutas.inicioPaciente : Rutas.inicioMedico;
 
   // Ya dentro, las pantallas del embudo y de acceso no tienen sentido.

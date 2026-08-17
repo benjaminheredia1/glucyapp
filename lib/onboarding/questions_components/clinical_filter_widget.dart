@@ -127,10 +127,11 @@ Widget _header(BuildContext context, {required int respondidas, required int tot
         Row(
           children: [
             InkWell(
-              // `context.go(Rutas.filtroClinico)` desde OnboardingScreen deja
-              // esta pantalla como unica en el stack: `pop()` a secas
-              // lanzaria `GoError('There is nothing to pop')`.
-              onTap: () => context.canPop() ? context.pop() : context.go(Rutas.onboarding),
+              // Se llega por `context.go(Rutas.filtroClinico)` desde Tu perfil,
+              // que deja esta pantalla como unica en el stack: `pop()` a secas
+              // lanzaria `GoError('There is nothing to pop')`. Atras vuelve a
+              // Tu perfil, la pantalla anterior del embudo en el prototipo.
+              onTap: () => context.canPop() ? context.pop() : context.go(Rutas.perfil),
               borderRadius: BorderRadius.circular(32),
               child: Container(
                 width: 32,

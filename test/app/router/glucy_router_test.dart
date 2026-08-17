@@ -83,6 +83,8 @@ class AuthRepositoryQueNuncaResuelveAlIniciar implements AuthRepository {
 
 Usuario usuarioCon(Rol rol) => Usuario(id: 1, name: 'X', email: 'x@ejemplo.com', rol: rol);
 
+const _anonima = Usuario(id: 1, name: 'Paciente', rol: Rol.paciente, esTemporal: true);
+
 /// El filtro clinico (Task 15) pide sus preguntas al montarse. Sin este fake,
 /// `router.go(Rutas.filtroClinico)` dispara una llamada real a traves de
 /// `appConfigProvider`, que este archivo no sobrescribe: este test solo
@@ -218,6 +220,40 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(rutaActual(router), Rutas.login);
+  });
+
+  testWidgets('una identidad temporal aterriza en onboarding, no en inicio', (tester) async {
+    final router = await montar(tester, _anonima);
+
+    expect(rutaActual(router), Rutas.onboarding);
+  });
+
+  testWidgets('una identidad temporal que va a inicio vuelve a onboarding', (tester) async {
+    final router = await montar(tester, _anonima);
+
+    router.go(Rutas.inicioPaciente);
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.onboarding);
+  });
+
+  testWidgets('una identidad temporal puede entrar a tu perfil, filtro clinico y crear cuenta', (tester) async {
+    final router = await montar(tester, _anonima);
+
+    for (final ruta in [Rutas.perfil, Rutas.filtroClinico, Rutas.crearCuenta]) {
+      router.go(ruta);
+      await tester.pumpAndSettle();
+      expect(rutaActual(router), ruta, reason: ruta);
+    }
+  });
+
+  testWidgets('sin sesion, tu perfil es alcanzable (ruta publica)', (tester) async {
+    final router = await montar(tester, null);
+
+    router.go(Rutas.perfil);
+    await tester.pumpAndSettle();
+
+    expect(rutaActual(router), Rutas.perfil);
   });
 
   testWidgets('sin sesion, el filtro clinico si es alcanzable', (tester) async {

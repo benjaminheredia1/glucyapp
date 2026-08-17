@@ -2,6 +2,7 @@
 abstract final class Rutas {
   static const splash = '/';
   static const onboarding = '/onboarding';
+  static const perfil = '/tu-perfil';
   static const filtroClinico = '/filtro-clinico';
   static const noApto = '/no-apto';
   static const urgencia = '/urgencia';
@@ -16,6 +17,7 @@ abstract final class Rutas {
   static const publicas = {
     splash,
     onboarding,
+    perfil,
     filtroClinico,
     noApto,
     urgencia,
