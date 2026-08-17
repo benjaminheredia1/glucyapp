@@ -22,6 +22,7 @@ class EstudioMedico {
     required this.estado,
     required this.fecha,
     this.tipoEstudio,
+    this.tipoEstudioId,
     this.motivoRechazo,
     this.descripcion,
     this.archivoId,
@@ -34,13 +35,16 @@ class EstudioMedico {
         ? null
         : [usuario['name'], usuario['apellidoPaterno']].whereType<String>().join(' ').trim();
 
+    // Laravel serializa la relacion eager-loaded en snake_case
+    // (`tipo_estudio`) aunque las columnas propias vayan en camelCase.
+    final tipo = (json['tipoEstudio'] ?? json['tipo_estudio']) as Map<String, dynamic>?;
+
     return EstudioMedico(
       id: json['id'] as int,
       estado: json['estado'] as String,
       fecha: DateTime.parse(json['fecha'] as String),
-      tipoEstudio: json['tipoEstudio'] == null
-          ? null
-          : TipoEstudio.fromJson(json['tipoEstudio'] as Map<String, dynamic>),
+      tipoEstudio: tipo == null ? null : TipoEstudio.fromJson(tipo),
+      tipoEstudioId: json['tipoEstudioId'] as int? ?? tipo?['id'] as int?,
       motivoRechazo: json['motivoRechazo'] as String?,
       descripcion: json['descripcion'] as String?,
       archivoId: json['archivoId'] as int? ?? (json['archivo'] as Map<String, dynamic>?)?['id'] as int?,
@@ -52,6 +56,9 @@ class EstudioMedico {
   final String estado;
   final DateTime fecha;
   final TipoEstudio? tipoEstudio;
+  /// Siempre presente en el JSON; `tipoEstudio` solo si el backend cargo la
+  /// relacion. Cruzar por este id no depende de eso.
+  final int? tipoEstudioId;
   final String? motivoRechazo;
   final String? descripcion;
   final int? archivoId;

@@ -81,7 +81,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
       final ultimoPorTipo = <int, EstudioMedico>{};
 
       for (final estudio in estudios) {
-        final tipoId = estudio.tipoEstudio?.id;
+        final tipoId = estudio.tipoEstudioId ?? estudio.tipoEstudio?.id;
 
         if (tipoId != null && !ultimoPorTipo.containsKey(tipoId)) {
           ultimoPorTipo[tipoId] = estudio;
@@ -156,7 +156,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
       case _Estado.aprobado:
         return (tint: GlucyColors.tealBg, fg: GlucyColors.primary, icon: Icons.check_circle_outline, label: 'Aprobado');
       case _Estado.enRevision:
-        return (tint: GlucyColors.track, fg: GlucyColors.tealText, icon: Icons.hourglass_top_outlined, label: 'En revisión médica');
+        return (tint: GlucyColors.track, fg: GlucyColors.tealText, icon: Icons.hourglass_top_outlined, label: 'Subido · en revisión médica');
       case _Estado.sinSubir:
         return (tint: GlucyColors.warnBg, fg: GlucyColors.warn, icon: Icons.schedule_outlined, label: 'Pendiente de subir');
       case _Estado.rechazado:
