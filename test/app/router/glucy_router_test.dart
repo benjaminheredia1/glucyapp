@@ -245,14 +245,6 @@ void main() {
   // "Filtro 1 OK" y de ahi a los estudios; la cuenta se crea recien despues
   // del pre-diagnostico (pantalla 14), no al salir del filtro clinico.
   testWidgets('el veredicto apto navega a filtro 1 OK, no a crear cuenta', (tester) async {
-    // Filtro1Screen es una Column fija sin scroll: en el lienzo por defecto
-    // del test (800x600) desborda 45px de alto y revienta el test. Se
-    // mantiene el ancho porque con 390px son onboarding y el filtro clinico
-    // los que desbordan (la fuente Ahem del test es mas ancha que la real).
-    tester.view.physicalSize = const Size(800, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
     final router = await montar(
       tester,
       null,

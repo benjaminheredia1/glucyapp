@@ -71,93 +71,104 @@ class Filtro1Screen extends StatelessWidget {
     return Scaffold(
       backgroundColor: GlucyColors.bg,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Resultado del filtro 1',
-                style: TextStyle(
-                  fontFamily: 'Sora',
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                  color: GlucyColors.deep,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: GlucyColors.resultBg,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                      child: const Icon(Icons.check, size: 22, color: GlucyColors.primary),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Eres candidata a Glucy AI',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Sora',
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                        color: GlucyColors.deep,
+        // Scrollea en pantallas cortas sin perder el Spacer que pega el boton
+        // al fondo cuando sobra alto: la caja minima mide lo que el viewport.
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Resultado del filtro 1',
+                        style: TextStyle(
+                          fontFamily: 'Sora',
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
+                          color: GlucyColors.deep,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Ninguna respuesta de alarma. Pasas al filtro 2: los estudios que confirman el '
-                      'diagnóstico y descartan contraindicaciones.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, height: 1.5, color: GlucyColors.resultText),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'DÓNDE ESTÁS',
-                style: TextStyle(
-                  fontFamily: 'Sora',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0x6B10262A),
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 8),
-              for (final stage in _stages) ...[
-                _stageCard(stage),
-                const SizedBox(height: 10),
-              ],
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _verEstudios(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: GlucyColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: GlucyColors.resultBg,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                              child: const Icon(Icons.check, size: 22, color: GlucyColors.primary),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Eres candidata a Glucy AI',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'Sora',
+                                fontSize: 19,
+                                fontWeight: FontWeight.w700,
+                                color: GlucyColors.deep,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Ninguna respuesta de alarma. Pasas al filtro 2: los estudios que confirman el '
+                              'diagnóstico y descartan contraindicaciones.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 13, height: 1.5, color: GlucyColors.resultText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'DÓNDE ESTÁS',
+                        style: TextStyle(
+                          fontFamily: 'Sora',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0x6B10262A),
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      for (final stage in _stages) ...[
+                        _stageCard(stage),
+                        const SizedBox(height: 10),
+                      ],
+                      const Spacer(),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => _verEstudios(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: GlucyColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text(
+                            'Ver estudios requeridos',
+                            style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text(
-                    'Ver estudios requeridos',
-                    style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
