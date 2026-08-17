@@ -6,16 +6,21 @@ import 'package:glucy_app/features/auth/data/auth_repository.dart';
 import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/onboarding/questions_components/crear_cuenta_screen.dart';
+import 'package:glucy_app/shared/widgets/mensaje_error.dart';
 
 const _maria = Usuario(id: 7, name: 'Maria', email: 'maria@ejemplo.com', rol: Rol.paciente);
 
 class AuthRepositoryFalso implements AuthRepository {
   Object? errorAlIniciar;
   int intentos = 0;
+  bool? ultimoReclamar;
+  final List<bool> reclamos = [];
 
   @override
   Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async {
     intentos++;
+    ultimoReclamar = reclamar;
+    reclamos.add(reclamar);
     // Un retraso real (no solo microtasks) para que el estado de carga sea
     // observable: `tester.tap` agota la cola de microtasks antes de volver,
     // asi que un Future que resuelve sin espera real nunca deja ver el
@@ -56,6 +61,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.intentos, 1);
+  });
+
+  testWidgets('el boton de acceso reclama la identidad anonima', (tester) async {
+    final repo = AuthRepositoryFalso();
+    await montar(tester, repo);
+
+    await tester.tap(find.byKey(const Key('boton-acceder')));
+    await tester.pumpAndSettle();
+
+    expect(repo.ultimoReclamar, isTrue);
+  });
+
+  testWidgets('un 409 abre el dialogo y "Iniciar sesion" reintenta sin reclamar', (tester) async {
+    final repo = AuthRepositoryFalso()
+      ..errorAlIniciar = const FalloConflicto('Ya existe una cuenta con este correo. Inicia sesion con ella.');
+    await montar(tester, repo);
+
+    await tester.tap(find.byKey(const Key('boton-acceder')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dialogo-cuenta-existente')), findsOneWidget);
+    expect(find.textContaining('no se transfiere'), findsOneWidget);
+    // El conflicto lo explica el dialogo; no se duplica como MensajeError.
+    expect(find.byType(MensajeError), findsNothing);
+
+    repo.errorAlIniciar = null;
+    await tester.tap(find.byKey(const Key('boton-entrar-sin-reclamar')));
+    await tester.pumpAndSettle();
+
+    expect(repo.reclamos, [true, false]);
+    expect(find.byKey(const Key('dialogo-cuenta-existente')), findsNothing);
   });
 
   testWidgets('el boton de Apple esta deshabilitado', (tester) async {

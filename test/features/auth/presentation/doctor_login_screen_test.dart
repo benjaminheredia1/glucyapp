@@ -12,10 +12,14 @@ const _doctor = Usuario(id: 3, name: 'Dr. Medina', email: 'medina@clinica.com', 
 class AuthRepositoryFalso implements AuthRepository {
   Object? errorAlIniciar;
   int intentos = 0;
+  bool? ultimoReclamar;
+  final List<bool> reclamos = [];
 
   @override
   Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async {
     intentos++;
+    ultimoReclamar = reclamar;
+    reclamos.add(reclamar);
     // Un retraso real (no solo microtasks) para que el estado de carga sea
     // observable: `tester.tap` agota la cola de microtasks antes de volver,
     // asi que un Future que resuelve sin espera real nunca deja ver el
@@ -56,6 +60,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.intentos, 1);
+  });
+
+  testWidgets('el acceso medico nunca reclama la identidad anonima', (tester) async {
+    final repo = AuthRepositoryFalso();
+    await montar(tester, repo);
+
+    await tester.tap(find.byKey(const Key('boton-acceder-medico')));
+    await tester.pumpAndSettle();
+
+    expect(repo.ultimoReclamar, isFalse);
   });
 
   testWidgets('no pide contrasena en la propia app', (tester) async {

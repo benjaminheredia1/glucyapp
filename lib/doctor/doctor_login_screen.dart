@@ -87,9 +87,13 @@ class DoctorLoginScreen extends ConsumerWidget {
                       width: double.infinity,
                       child: FilledButton(
                         key: const Key('boton-acceder-medico'),
+                        // Un doctor nunca reclama una identidad anonima de
+                        // paciente: entra siempre sin Bearer.
                         onPressed: cargando
                             ? null
-                            : () => ref.read(sesionControllerProvider.notifier).iniciarSesion(),
+                            : () => ref
+                                .read(sesionControllerProvider.notifier)
+                                .iniciarSesion(reclamar: false),
                         style: FilledButton.styleFrom(
                           backgroundColor: GlucyPalette.primary,
                           padding: const EdgeInsets.symmetric(vertical: 15),

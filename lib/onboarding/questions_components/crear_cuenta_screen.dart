@@ -17,11 +17,45 @@ class CrearCuentaScreen extends ConsumerWidget {
 
   void _portalMedico(BuildContext context) => context.go(Rutas.loginMedico);
 
+  /// 409 al reclamar: el correo o la identidad de Auth0 ya es de otra cuenta.
+  /// La identidad anonima sigue viva; se ofrece entrar en la cuenta vieja
+  /// (sin reclamar) o usar otro correo.
+  Future<void> _dialogoCuentaExistente(BuildContext context, WidgetRef ref) {
+    return showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        key: const Key('dialogo-cuenta-existente'),
+        title: const Text('Ya existe una cuenta con este correo'),
+        content: const Text(
+          '¿Quieres iniciar sesión con ella? Lo que cargaste como invitado no se transfiere a esa cuenta.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Usar otro correo')),
+          FilledButton(
+            key: const Key('boton-entrar-sin-reclamar'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              ref.read(sesionControllerProvider.notifier).iniciarSesion(reclamar: false);
+            },
+            child: const Text('Iniciar sesión'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<AsyncValue<Sesion>>(sesionControllerProvider, (_, actual) {
+      if (!actual.isLoading && actual.error is FalloConflicto) {
+        _dialogoCuentaExistente(context, ref);
+      }
+    });
+
     final AsyncValue<Sesion> sesion = ref.watch(sesionControllerProvider);
     final cargando = sesion.isLoading;
-    final fallo = sesion.error;
+    // El conflicto lo explica el dialogo; aqui solo el resto de fallos.
+    final fallo = sesion.error is FalloConflicto ? null : sesion.error;
 
     return Scaffold(
       backgroundColor: GlucyPalette.bg,
