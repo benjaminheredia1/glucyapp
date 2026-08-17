@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_datetime_picker_plus/flutter_datetime_picker_plus.dart';
-import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
-import 'package:glucy_app/onboarding/questions_components/clinical_filter_widget.dart';
-import 'package:glucy_app/onboarding/questions_components/filtro1_screen.dart';
-import 'package:glucy_app/onboarding/questions_components/no_apto_screen.dart';
-import 'package:glucy_app/warning/warning.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/app/router/rutas.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
+import 'package:glucy_app/features/perfil/perfil_api.dart';
+import 'package:go_router/go_router.dart';
 
 /// Colores del diseño Glucy AI
 class GlucyColors {
@@ -21,16 +21,23 @@ class GlucyColors {
   static const imcText = Color(0xFF0A5A62);
   static const chipBg = Color(0xFFDEF3EC);
   static const chipDashedBorder = Color(0x590A7C86); // rgba(10,124,134,0.35)
+  static const alert = Color(0xFFE8574B);
 }
 
-class Profile extends StatefulWidget {
+/// "Tu perfil" (pantalla 3 del prototipo): entre onboarding y el filtro
+/// clinico. Guarda lo que el backend acepta por `PATCH /perfil` con el Bearer
+/// de la identidad temporal y sigue al filtro. Anos con diabetes y
+/// antecedentes se quedan en pantalla: el contrato del PATCH no los tiene.
+class Profile extends ConsumerStatefulWidget {
   const Profile({super.key});
 
   @override
-  State<Profile> createState() => _ProfileState();
+  ConsumerState<Profile> createState() => _ProfileState();
 }
 
-class _ProfileState extends State<Profile> {
+class _ProfileState extends ConsumerState<Profile> {
+  bool _guardando = false;
+  String? _error;
   DateTime? _fechaNacimiento;
   String? _sexoSeleccionado;
   double _imc = 0.0;
@@ -41,6 +48,7 @@ class _ProfileState extends State<Profile> {
   final _pesoController = TextEditingController();
   final _tallaController = TextEditingController();
   final _nombreController = TextEditingController();
+  final _telefonoController = TextEditingController();
   final _anosDiabetesController = TextEditingController();
 
   // Antecedentes familiares (chips seleccionables, como en el diseño)
@@ -60,17 +68,43 @@ class _ProfileState extends State<Profile> {
     _pesoController.dispose();
     _tallaController.dispose();
     _nombreController.dispose();
+    _telefonoController.dispose();
     _anosDiabetesController.dispose();
     super.dispose();
   }
 
-  int? get _edad {
-    final nac = _fechaNacimiento;
-    if (nac == null) return null;
-    final hoy = DateTime.now();
-    var edad = hoy.year - nac.year;
-    if (hoy.month < nac.month || (hoy.month == nac.month && hoy.day < nac.day)) edad--;
-    return edad;
+  Future<void> _continuar() async {
+    setState(() {
+      _guardando = true;
+      _error = null;
+    });
+
+    final nombre = _nombreController.text.trim();
+    final telefono = _telefonoController.text.trim();
+    final peso = double.tryParse(_pesoController.text.replaceAll(',', '.'));
+    final talla = int.tryParse(_tallaController.text);
+    // El backend espera minusculas: femenino / masculino / otro.
+    final sexo = _sexoSeleccionado?.toLowerCase();
+
+    try {
+      // Solo viajan los campos con valor (PATCH parcial).
+      await ref.read(perfilApiProvider).actualizar(
+            name: nombre.isEmpty ? null : nombre,
+            telefono: telefono.isEmpty ? null : telefono,
+            fechaNacimiento: _fechaNacimiento,
+            sexo: sexo,
+            pesoKg: peso,
+            tallaCm: talla,
+          );
+
+      if (!mounted) return;
+      context.go(Rutas.filtroClinico);
+    } on FalloApi catch (fallo) {
+      if (!mounted) return;
+      setState(() => _error = fallo.mensaje);
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
   }
 
   void _calcularImc(double weight, double height) {
@@ -233,11 +267,14 @@ class _ProfileState extends State<Profile> {
       child: Column(
         children: [
           TextField(
+            key: const Key('campo-nombre'),
             controller: _nombreController,
             decoration: _fieldDecoration('Nombre completo', hint: 'Ej: María Torres'),
           ),
           const SizedBox(height: 12),
           TextField(
+            key: const Key('campo-telefono'),
+            controller: _telefonoController,
             keyboardType: TextInputType.phone,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: _fieldDecoration('Teléfono móvil', hint: 'Ej: 123-456-7890'),
@@ -257,6 +294,7 @@ class _ProfileState extends State<Profile> {
             children: [
               Expanded(
                 child: TextField(
+                  key: const Key('campo-talla'),
                   controller: _tallaController,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -267,6 +305,7 @@ class _ProfileState extends State<Profile> {
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
+                  key: const Key('campo-peso'),
                   controller: _pesoController,
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -317,6 +356,7 @@ class _ProfileState extends State<Profile> {
 
   Widget _sexoField() {
     return DropdownButtonFormField<String>(
+      key: const Key('campo-sexo'),
       value: _sexoSeleccionado,
       isExpanded: true,
       decoration: _fieldDecoration('Sexo'),
@@ -489,22 +529,6 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  List<NoAptoRecapItem> _noAptoRecap() {
-    final nombre = _nombreController.text.trim();
-    final edad = _edad;
-    final perfil = [
-      if (nombre.isNotEmpty) nombre,
-      if (edad != null) '$edad años',
-    ].join(' · ');
-    final anos = _anosDiabetesController.text.trim();
-    return [
-      NoAptoRecapItem('Perfil', perfil.isEmpty ? '—' : perfil),
-      NoAptoRecapItem('IMC estimado', _imc == 0 ? '—' : '${_imc.toStringAsFixed(1)} · $_categoriaImc'),
-      NoAptoRecapItem('Años con diabetes', anos.isEmpty ? '—' : anos),
-      const NoAptoRecapItem('Filtro clínico', '9 de 9 respondidas'),
-    ];
-  }
-
   // ---------- Botón inferior fijo ----------
   Widget _bottomCta() {
     return Container(
@@ -514,52 +538,39 @@ class _ProfileState extends State<Profile> {
         color: Colors.white,
         border: Border(top: BorderSide(color: GlucyColors.cardBorder)),
       ),
-      child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              // Pantalla legacy sin ruteo propio: el veredicto ya no lo calcula
-              // este widget (Task 15), asi que aqui solo se traduce a la misma
-              // navegacion que antes hacian los tres callbacks.
-              builder: (_) => ClinicalFilterScreen(
-                onVeredicto: (veredicto) => switch (veredicto.resultado) {
-                  Resultado.apto => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const Filtro1Screen()),
-                    ),
-                  Resultado.urgente => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const UrgencyScreen()),
-                    ),
-                  Resultado.noApto => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => NoAptoScreen(
-                          reason: veredicto.motivo ?? 'tu respuesta al filtro clinico',
-                          recap: [
-                            ..._noAptoRecap(),
-                            NoAptoRecapItem(
-                              'Respuesta de alarma',
-                              veredicto.motivo ?? 'tu respuesta al filtro clinico',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'No se pudo guardar tu perfil: $_error',
+                style: const TextStyle(fontSize: 12.5, color: GlucyColors.alert),
               ),
             ),
-          );
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: GlucyColors.primary,
-          foregroundColor: GlucyColors.bg,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        child: const Text(
-          'Continuar al filtro clínico',
-          style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700),
-        ),
+          ElevatedButton(
+            onPressed: _guardando ? null : _continuar,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: GlucyColors.primary,
+              foregroundColor: GlucyColors.bg,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: _guardando
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text(
+                    'Continuar al filtro clínico',
+                    style: TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+          ),
+        ],
       ),
     );
   }
