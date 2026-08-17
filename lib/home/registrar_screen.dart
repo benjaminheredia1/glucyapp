@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glucy_app/core/error/fallo_api.dart';
 import 'package:glucy_app/features/mediciones/medicion_api.dart';
+import 'package:glucy_app/features/medicacion/medicacion_providers.dart';
 import 'package:glucy_app/features/mediciones/mediciones_provider.dart';
 import 'package:glucy_app/home/reg_ok_screen.dart';
 
@@ -66,6 +67,7 @@ class _RegistrarScreenState extends ConsumerState<RegistrarScreen> {
       // Inicio y Progreso pintan `medicionesProvider`: sin esto, la grafica
       // seguiria mostrando lo de antes al volver.
       ref.invalidate(medicionesProvider);
+      ref.invalidate(actividadProvider);
 
       if (!mounted) return;
 
