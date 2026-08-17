@@ -15,7 +15,11 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Usuario {
 
- int get id; String get name; String get email; Rol get rol; String? get apellidoPaterno; String? get apellidoMaterno; String? get telefono;@JsonKey(name: 'email_verified_at') DateTime? get emailVerificadoEn;
+ int get id; String get name;// Null mientras la cuenta sea temporal (identidad anonima): Auth0 aporta
+// el correo al reclamarla.
+ String? get email; Rol get rol;// Identidad creada por POST /auth/anonimo, todavia sin reclamar. Los
+// JSON anteriores al contrato no lo traen: se asume cuenta real.
+@JsonKey(defaultValue: false) bool get esTemporal; String? get apellidoPaterno; String? get apellidoMaterno; String? get telefono;@JsonKey(name: 'email_verified_at') DateTime? get emailVerificadoEn;
 /// Create a copy of Usuario
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +32,16 @@ $UsuarioCopyWith<Usuario> get copyWith => _$UsuarioCopyWithImpl<Usuario>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Usuario&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.rol, rol) || other.rol == rol)&&(identical(other.apellidoPaterno, apellidoPaterno) || other.apellidoPaterno == apellidoPaterno)&&(identical(other.apellidoMaterno, apellidoMaterno) || other.apellidoMaterno == apellidoMaterno)&&(identical(other.telefono, telefono) || other.telefono == telefono)&&(identical(other.emailVerificadoEn, emailVerificadoEn) || other.emailVerificadoEn == emailVerificadoEn));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Usuario&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.rol, rol) || other.rol == rol)&&(identical(other.esTemporal, esTemporal) || other.esTemporal == esTemporal)&&(identical(other.apellidoPaterno, apellidoPaterno) || other.apellidoPaterno == apellidoPaterno)&&(identical(other.apellidoMaterno, apellidoMaterno) || other.apellidoMaterno == apellidoMaterno)&&(identical(other.telefono, telefono) || other.telefono == telefono)&&(identical(other.emailVerificadoEn, emailVerificadoEn) || other.emailVerificadoEn == emailVerificadoEn));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,email,rol,apellidoPaterno,apellidoMaterno,telefono,emailVerificadoEn);
+int get hashCode => Object.hash(runtimeType,id,name,email,rol,esTemporal,apellidoPaterno,apellidoMaterno,telefono,emailVerificadoEn);
 
 @override
 String toString() {
-  return 'Usuario(id: $id, name: $name, email: $email, rol: $rol, apellidoPaterno: $apellidoPaterno, apellidoMaterno: $apellidoMaterno, telefono: $telefono, emailVerificadoEn: $emailVerificadoEn)';
+  return 'Usuario(id: $id, name: $name, email: $email, rol: $rol, esTemporal: $esTemporal, apellidoPaterno: $apellidoPaterno, apellidoMaterno: $apellidoMaterno, telefono: $telefono, emailVerificadoEn: $emailVerificadoEn)';
 }
 
 
@@ -48,7 +52,7 @@ abstract mixin class $UsuarioCopyWith<$Res>  {
   factory $UsuarioCopyWith(Usuario value, $Res Function(Usuario) _then) = _$UsuarioCopyWithImpl;
 @useResult
 $Res call({
- int id, String name, String email, Rol rol, String? apellidoPaterno, String? apellidoMaterno, String? telefono,@JsonKey(name: 'email_verified_at') DateTime? emailVerificadoEn
+ int id, String name, String? email, Rol rol,@JsonKey(defaultValue: false) bool esTemporal, String? apellidoPaterno, String? apellidoMaterno, String? telefono,@JsonKey(name: 'email_verified_at') DateTime? emailVerificadoEn
 });
 
 
@@ -65,13 +69,14 @@ class _$UsuarioCopyWithImpl<$Res>
 
 /// Create a copy of Usuario
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? email = null,Object? rol = null,Object? apellidoPaterno = freezed,Object? apellidoMaterno = freezed,Object? telefono = freezed,Object? emailVerificadoEn = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? email = freezed,Object? rol = null,Object? esTemporal = null,Object? apellidoPaterno = freezed,Object? apellidoMaterno = freezed,Object? telefono = freezed,Object? emailVerificadoEn = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,email: null == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
-as String,rol: null == rol ? _self.rol : rol // ignore: cast_nullable_to_non_nullable
-as Rol,apellidoPaterno: freezed == apellidoPaterno ? _self.apellidoPaterno : apellidoPaterno // ignore: cast_nullable_to_non_nullable
+as String,email: freezed == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
+as String?,rol: null == rol ? _self.rol : rol // ignore: cast_nullable_to_non_nullable
+as Rol,esTemporal: null == esTemporal ? _self.esTemporal : esTemporal // ignore: cast_nullable_to_non_nullable
+as bool,apellidoPaterno: freezed == apellidoPaterno ? _self.apellidoPaterno : apellidoPaterno // ignore: cast_nullable_to_non_nullable
 as String?,apellidoMaterno: freezed == apellidoMaterno ? _self.apellidoMaterno : apellidoMaterno // ignore: cast_nullable_to_non_nullable
 as String?,telefono: freezed == telefono ? _self.telefono : telefono // ignore: cast_nullable_to_non_nullable
 as String?,emailVerificadoEn: freezed == emailVerificadoEn ? _self.emailVerificadoEn : emailVerificadoEn // ignore: cast_nullable_to_non_nullable
@@ -160,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String name,  String email,  Rol rol,  String? apellidoPaterno,  String? apellidoMaterno,  String? telefono, @JsonKey(name: 'email_verified_at')  DateTime? emailVerificadoEn)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String name,  String? email,  Rol rol, @JsonKey(defaultValue: false)  bool esTemporal,  String? apellidoPaterno,  String? apellidoMaterno,  String? telefono, @JsonKey(name: 'email_verified_at')  DateTime? emailVerificadoEn)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Usuario() when $default != null:
-return $default(_that.id,_that.name,_that.email,_that.rol,_that.apellidoPaterno,_that.apellidoMaterno,_that.telefono,_that.emailVerificadoEn);case _:
+return $default(_that.id,_that.name,_that.email,_that.rol,_that.esTemporal,_that.apellidoPaterno,_that.apellidoMaterno,_that.telefono,_that.emailVerificadoEn);case _:
   return orElse();
 
 }
@@ -181,10 +186,10 @@ return $default(_that.id,_that.name,_that.email,_that.rol,_that.apellidoPaterno,
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String name,  String email,  Rol rol,  String? apellidoPaterno,  String? apellidoMaterno,  String? telefono, @JsonKey(name: 'email_verified_at')  DateTime? emailVerificadoEn)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String name,  String? email,  Rol rol, @JsonKey(defaultValue: false)  bool esTemporal,  String? apellidoPaterno,  String? apellidoMaterno,  String? telefono, @JsonKey(name: 'email_verified_at')  DateTime? emailVerificadoEn)  $default,) {final _that = this;
 switch (_that) {
 case _Usuario():
-return $default(_that.id,_that.name,_that.email,_that.rol,_that.apellidoPaterno,_that.apellidoMaterno,_that.telefono,_that.emailVerificadoEn);case _:
+return $default(_that.id,_that.name,_that.email,_that.rol,_that.esTemporal,_that.apellidoPaterno,_that.apellidoMaterno,_that.telefono,_that.emailVerificadoEn);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -201,10 +206,10 @@ return $default(_that.id,_that.name,_that.email,_that.rol,_that.apellidoPaterno,
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String name,  String email,  Rol rol,  String? apellidoPaterno,  String? apellidoMaterno,  String? telefono, @JsonKey(name: 'email_verified_at')  DateTime? emailVerificadoEn)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String name,  String? email,  Rol rol, @JsonKey(defaultValue: false)  bool esTemporal,  String? apellidoPaterno,  String? apellidoMaterno,  String? telefono, @JsonKey(name: 'email_verified_at')  DateTime? emailVerificadoEn)?  $default,) {final _that = this;
 switch (_that) {
 case _Usuario() when $default != null:
-return $default(_that.id,_that.name,_that.email,_that.rol,_that.apellidoPaterno,_that.apellidoMaterno,_that.telefono,_that.emailVerificadoEn);case _:
+return $default(_that.id,_that.name,_that.email,_that.rol,_that.esTemporal,_that.apellidoPaterno,_that.apellidoMaterno,_that.telefono,_that.emailVerificadoEn);case _:
   return null;
 
 }
@@ -216,13 +221,18 @@ return $default(_that.id,_that.name,_that.email,_that.rol,_that.apellidoPaterno,
 @JsonSerializable()
 
 class _Usuario implements Usuario {
-  const _Usuario({required this.id, required this.name, required this.email, required this.rol, this.apellidoPaterno, this.apellidoMaterno, this.telefono, @JsonKey(name: 'email_verified_at') this.emailVerificadoEn});
+  const _Usuario({required this.id, required this.name, this.email, required this.rol, @JsonKey(defaultValue: false) this.esTemporal = false, this.apellidoPaterno, this.apellidoMaterno, this.telefono, @JsonKey(name: 'email_verified_at') this.emailVerificadoEn});
   factory _Usuario.fromJson(Map<String, dynamic> json) => _$UsuarioFromJson(json);
 
 @override final  int id;
 @override final  String name;
-@override final  String email;
+// Null mientras la cuenta sea temporal (identidad anonima): Auth0 aporta
+// el correo al reclamarla.
+@override final  String? email;
 @override final  Rol rol;
+// Identidad creada por POST /auth/anonimo, todavia sin reclamar. Los
+// JSON anteriores al contrato no lo traen: se asume cuenta real.
+@override@JsonKey(defaultValue: false) final  bool esTemporal;
 @override final  String? apellidoPaterno;
 @override final  String? apellidoMaterno;
 @override final  String? telefono;
@@ -241,16 +251,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Usuario&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.rol, rol) || other.rol == rol)&&(identical(other.apellidoPaterno, apellidoPaterno) || other.apellidoPaterno == apellidoPaterno)&&(identical(other.apellidoMaterno, apellidoMaterno) || other.apellidoMaterno == apellidoMaterno)&&(identical(other.telefono, telefono) || other.telefono == telefono)&&(identical(other.emailVerificadoEn, emailVerificadoEn) || other.emailVerificadoEn == emailVerificadoEn));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Usuario&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.email, email) || other.email == email)&&(identical(other.rol, rol) || other.rol == rol)&&(identical(other.esTemporal, esTemporal) || other.esTemporal == esTemporal)&&(identical(other.apellidoPaterno, apellidoPaterno) || other.apellidoPaterno == apellidoPaterno)&&(identical(other.apellidoMaterno, apellidoMaterno) || other.apellidoMaterno == apellidoMaterno)&&(identical(other.telefono, telefono) || other.telefono == telefono)&&(identical(other.emailVerificadoEn, emailVerificadoEn) || other.emailVerificadoEn == emailVerificadoEn));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,email,rol,apellidoPaterno,apellidoMaterno,telefono,emailVerificadoEn);
+int get hashCode => Object.hash(runtimeType,id,name,email,rol,esTemporal,apellidoPaterno,apellidoMaterno,telefono,emailVerificadoEn);
 
 @override
 String toString() {
-  return 'Usuario(id: $id, name: $name, email: $email, rol: $rol, apellidoPaterno: $apellidoPaterno, apellidoMaterno: $apellidoMaterno, telefono: $telefono, emailVerificadoEn: $emailVerificadoEn)';
+  return 'Usuario(id: $id, name: $name, email: $email, rol: $rol, esTemporal: $esTemporal, apellidoPaterno: $apellidoPaterno, apellidoMaterno: $apellidoMaterno, telefono: $telefono, emailVerificadoEn: $emailVerificadoEn)';
 }
 
 
@@ -261,7 +271,7 @@ abstract mixin class _$UsuarioCopyWith<$Res> implements $UsuarioCopyWith<$Res> {
   factory _$UsuarioCopyWith(_Usuario value, $Res Function(_Usuario) _then) = __$UsuarioCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String name, String email, Rol rol, String? apellidoPaterno, String? apellidoMaterno, String? telefono,@JsonKey(name: 'email_verified_at') DateTime? emailVerificadoEn
+ int id, String name, String? email, Rol rol,@JsonKey(defaultValue: false) bool esTemporal, String? apellidoPaterno, String? apellidoMaterno, String? telefono,@JsonKey(name: 'email_verified_at') DateTime? emailVerificadoEn
 });
 
 
@@ -278,13 +288,14 @@ class __$UsuarioCopyWithImpl<$Res>
 
 /// Create a copy of Usuario
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? email = null,Object? rol = null,Object? apellidoPaterno = freezed,Object? apellidoMaterno = freezed,Object? telefono = freezed,Object? emailVerificadoEn = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? email = freezed,Object? rol = null,Object? esTemporal = null,Object? apellidoPaterno = freezed,Object? apellidoMaterno = freezed,Object? telefono = freezed,Object? emailVerificadoEn = freezed,}) {
   return _then(_Usuario(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,email: null == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
-as String,rol: null == rol ? _self.rol : rol // ignore: cast_nullable_to_non_nullable
-as Rol,apellidoPaterno: freezed == apellidoPaterno ? _self.apellidoPaterno : apellidoPaterno // ignore: cast_nullable_to_non_nullable
+as String,email: freezed == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
+as String?,rol: null == rol ? _self.rol : rol // ignore: cast_nullable_to_non_nullable
+as Rol,esTemporal: null == esTemporal ? _self.esTemporal : esTemporal // ignore: cast_nullable_to_non_nullable
+as bool,apellidoPaterno: freezed == apellidoPaterno ? _self.apellidoPaterno : apellidoPaterno // ignore: cast_nullable_to_non_nullable
 as String?,apellidoMaterno: freezed == apellidoMaterno ? _self.apellidoMaterno : apellidoMaterno // ignore: cast_nullable_to_non_nullable
 as String?,telefono: freezed == telefono ? _self.telefono : telefono // ignore: cast_nullable_to_non_nullable
 as String?,emailVerificadoEn: freezed == emailVerificadoEn ? _self.emailVerificadoEn : emailVerificadoEn // ignore: cast_nullable_to_non_nullable

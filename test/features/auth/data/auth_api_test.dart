@@ -96,6 +96,31 @@ void main() {
       expect(usuario.rol, Rol.paciente);
     });
 
+    test('actual() lee esTemporal y tolera email null (identidad anonima)', () async {
+      adaptador.onGet(
+        '/user',
+        (servidor) => servidor.reply(200, {
+          'id': 1,
+          'name': 'Paciente',
+          'email': null,
+          'auth0Sub': null,
+          'rol': 'paciente',
+          'esTemporal': true,
+        }),
+      );
+
+      final usuario = await UsuarioApi(dio).actual();
+
+      expect(usuario.esTemporal, isTrue);
+      expect(usuario.email, isNull);
+    });
+
+    test('actual() sin esTemporal en el JSON asume cuenta real', () async {
+      adaptador.onGet('/user', (servidor) => servidor.reply(200, usuarioJson()));
+
+      expect((await UsuarioApi(dio).actual()).esTemporal, isFalse);
+    });
+
     test('actual() propaga FalloAuth si la sesion murio', () async {
       adaptador.onGet('/user', (servidor) => servidor.reply(401, {'message': 'Unauthenticated.'}));
 

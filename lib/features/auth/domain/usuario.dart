@@ -12,8 +12,13 @@ abstract class Usuario with _$Usuario {
   const factory Usuario({
     required int id,
     required String name,
-    required String email,
+    // Null mientras la cuenta sea temporal (identidad anonima): Auth0 aporta
+    // el correo al reclamarla.
+    String? email,
     required Rol rol,
+    // Identidad creada por POST /auth/anonimo, todavia sin reclamar. Los
+    // JSON anteriores al contrato no lo traen: se asume cuenta real.
+    @JsonKey(defaultValue: false) @Default(false) bool esTemporal,
     String? apellidoPaterno,
     String? apellidoMaterno,
     String? telefono,
