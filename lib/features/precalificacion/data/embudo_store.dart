@@ -13,10 +13,6 @@ abstract interface class EmbudoStore {
 
   Future<Map<int, bool>> leerProgreso();
 
-  Future<void> guardarPrecalificacion(int id);
-
-  Future<int?> leerPrecalificacion();
-
   Future<void> limpiar();
 }
 
@@ -31,7 +27,6 @@ class EmbudoStoreSeguro implements EmbudoStore {
             );
 
   static const _claveProgreso = 'glucy.embudo.respuestas';
-  static const _clavePrecalificacion = 'glucy.embudo.precalificacionId';
 
   final FlutterSecureStorage _almacen;
 
@@ -65,18 +60,7 @@ class EmbudoStoreSeguro implements EmbudoStore {
   }
 
   @override
-  Future<void> guardarPrecalificacion(int id) =>
-      _almacen.write(key: _clavePrecalificacion, value: id.toString());
-
-  @override
-  Future<int?> leerPrecalificacion() async =>
-      int.tryParse(await _almacen.read(key: _clavePrecalificacion) ?? '');
-
-  @override
-  Future<void> limpiar() async {
-    await _almacen.delete(key: _claveProgreso);
-    await _almacen.delete(key: _clavePrecalificacion);
-  }
+  Future<void> limpiar() => _almacen.delete(key: _claveProgreso);
 }
 
 final embudoStoreProvider = Provider<EmbudoStore>((ref) => EmbudoStoreSeguro());

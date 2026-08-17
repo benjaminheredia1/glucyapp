@@ -16,9 +16,8 @@ class PrecalificacionRepository {
     return _cache ??= await _api.preguntas();
   }
 
-  Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) {
+  Future<Veredicto> evaluar(Map<int, bool> respuestas) {
     return _api.evaluar({
-      'leadEmail': ?leadEmail,
       'respuestas': [
         for (final entrada in respuestas.entries)
           {'preguntaId': entrada.key, 'respuesta': entrada.value ? 'si' : 'no'},
@@ -26,7 +25,6 @@ class PrecalificacionRepository {
     });
   }
 
-  Future<void> vincular(int precalificacionId) => _api.vincular(precalificacionId);
 }
 
 final precalificacionRepositoryProvider = Provider<PrecalificacionRepository>(

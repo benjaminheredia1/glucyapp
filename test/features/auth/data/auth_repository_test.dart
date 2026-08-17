@@ -99,12 +99,6 @@ class EmbudoStoreFalso implements EmbudoStore {
   Future<Map<int, bool>> leerProgreso() async => {};
 
   @override
-  Future<void> guardarPrecalificacion(int id) async {}
-
-  @override
-  Future<int?> leerPrecalificacion() async => null;
-
-  @override
   Future<void> limpiar() async => limpiezas++;
 }
 

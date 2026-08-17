@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$EstadoFiltro {
 
- List<PreguntaFiltro> get preguntas; Map<int, bool> get respuestas; String? get leadEmail;// Fallo de un `enviar()` anterior, para pintar un aviso sin tirar las
+ List<PreguntaFiltro> get preguntas; Map<int, bool> get respuestas;// Fallo de un `enviar()` anterior, para pintar un aviso sin tirar las
 // respuestas ya dadas. Es de la pantalla, no de dominio: no viaja a la
 // API ni se compara en tests salvo por su presencia.
  Object? get errorEnvio;
@@ -28,16 +28,16 @@ $EstadoFiltroCopyWith<EstadoFiltro> get copyWith => _$EstadoFiltroCopyWithImpl<E
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is EstadoFiltro&&const DeepCollectionEquality().equals(other.preguntas, preguntas)&&const DeepCollectionEquality().equals(other.respuestas, respuestas)&&(identical(other.leadEmail, leadEmail) || other.leadEmail == leadEmail)&&const DeepCollectionEquality().equals(other.errorEnvio, errorEnvio));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EstadoFiltro&&const DeepCollectionEquality().equals(other.preguntas, preguntas)&&const DeepCollectionEquality().equals(other.respuestas, respuestas)&&const DeepCollectionEquality().equals(other.errorEnvio, errorEnvio));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(preguntas),const DeepCollectionEquality().hash(respuestas),leadEmail,const DeepCollectionEquality().hash(errorEnvio));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(preguntas),const DeepCollectionEquality().hash(respuestas),const DeepCollectionEquality().hash(errorEnvio));
 
 @override
 String toString() {
-  return 'EstadoFiltro(preguntas: $preguntas, respuestas: $respuestas, leadEmail: $leadEmail, errorEnvio: $errorEnvio)';
+  return 'EstadoFiltro(preguntas: $preguntas, respuestas: $respuestas, errorEnvio: $errorEnvio)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $EstadoFiltroCopyWith<$Res>  {
   factory $EstadoFiltroCopyWith(EstadoFiltro value, $Res Function(EstadoFiltro) _then) = _$EstadoFiltroCopyWithImpl;
 @useResult
 $Res call({
- List<PreguntaFiltro> preguntas, Map<int, bool> respuestas, String? leadEmail, Object? errorEnvio
+ List<PreguntaFiltro> preguntas, Map<int, bool> respuestas, Object? errorEnvio
 });
 
 
@@ -65,12 +65,11 @@ class _$EstadoFiltroCopyWithImpl<$Res>
 
 /// Create a copy of EstadoFiltro
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? preguntas = null,Object? respuestas = null,Object? leadEmail = freezed,Object? errorEnvio = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? preguntas = null,Object? respuestas = null,Object? errorEnvio = freezed,}) {
   return _then(_self.copyWith(
 preguntas: null == preguntas ? _self.preguntas : preguntas // ignore: cast_nullable_to_non_nullable
 as List<PreguntaFiltro>,respuestas: null == respuestas ? _self.respuestas : respuestas // ignore: cast_nullable_to_non_nullable
-as Map<int, bool>,leadEmail: freezed == leadEmail ? _self.leadEmail : leadEmail // ignore: cast_nullable_to_non_nullable
-as String?,errorEnvio: freezed == errorEnvio ? _self.errorEnvio : errorEnvio ,
+as Map<int, bool>,errorEnvio: freezed == errorEnvio ? _self.errorEnvio : errorEnvio ,
   ));
 }
 
@@ -155,10 +154,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<PreguntaFiltro> preguntas,  Map<int, bool> respuestas,  String? leadEmail,  Object? errorEnvio)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<PreguntaFiltro> preguntas,  Map<int, bool> respuestas,  Object? errorEnvio)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _EstadoFiltro() when $default != null:
-return $default(_that.preguntas,_that.respuestas,_that.leadEmail,_that.errorEnvio);case _:
+return $default(_that.preguntas,_that.respuestas,_that.errorEnvio);case _:
   return orElse();
 
 }
@@ -176,10 +175,10 @@ return $default(_that.preguntas,_that.respuestas,_that.leadEmail,_that.errorEnvi
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<PreguntaFiltro> preguntas,  Map<int, bool> respuestas,  String? leadEmail,  Object? errorEnvio)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<PreguntaFiltro> preguntas,  Map<int, bool> respuestas,  Object? errorEnvio)  $default,) {final _that = this;
 switch (_that) {
 case _EstadoFiltro():
-return $default(_that.preguntas,_that.respuestas,_that.leadEmail,_that.errorEnvio);case _:
+return $default(_that.preguntas,_that.respuestas,_that.errorEnvio);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,10 +195,10 @@ return $default(_that.preguntas,_that.respuestas,_that.leadEmail,_that.errorEnvi
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<PreguntaFiltro> preguntas,  Map<int, bool> respuestas,  String? leadEmail,  Object? errorEnvio)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<PreguntaFiltro> preguntas,  Map<int, bool> respuestas,  Object? errorEnvio)?  $default,) {final _that = this;
 switch (_that) {
 case _EstadoFiltro() when $default != null:
-return $default(_that.preguntas,_that.respuestas,_that.leadEmail,_that.errorEnvio);case _:
+return $default(_that.preguntas,_that.respuestas,_that.errorEnvio);case _:
   return null;
 
 }
@@ -211,7 +210,7 @@ return $default(_that.preguntas,_that.respuestas,_that.leadEmail,_that.errorEnvi
 
 
 class _EstadoFiltro extends EstadoFiltro {
-  const _EstadoFiltro({required final  List<PreguntaFiltro> preguntas, required final  Map<int, bool> respuestas, this.leadEmail, this.errorEnvio}): _preguntas = preguntas,_respuestas = respuestas,super._();
+  const _EstadoFiltro({required final  List<PreguntaFiltro> preguntas, required final  Map<int, bool> respuestas, this.errorEnvio}): _preguntas = preguntas,_respuestas = respuestas,super._();
   
 
  final  List<PreguntaFiltro> _preguntas;
@@ -228,7 +227,6 @@ class _EstadoFiltro extends EstadoFiltro {
   return EqualUnmodifiableMapView(_respuestas);
 }
 
-@override final  String? leadEmail;
 // Fallo de un `enviar()` anterior, para pintar un aviso sin tirar las
 // respuestas ya dadas. Es de la pantalla, no de dominio: no viaja a la
 // API ni se compara en tests salvo por su presencia.
@@ -244,16 +242,16 @@ _$EstadoFiltroCopyWith<_EstadoFiltro> get copyWith => __$EstadoFiltroCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EstadoFiltro&&const DeepCollectionEquality().equals(other._preguntas, _preguntas)&&const DeepCollectionEquality().equals(other._respuestas, _respuestas)&&(identical(other.leadEmail, leadEmail) || other.leadEmail == leadEmail)&&const DeepCollectionEquality().equals(other.errorEnvio, errorEnvio));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _EstadoFiltro&&const DeepCollectionEquality().equals(other._preguntas, _preguntas)&&const DeepCollectionEquality().equals(other._respuestas, _respuestas)&&const DeepCollectionEquality().equals(other.errorEnvio, errorEnvio));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_preguntas),const DeepCollectionEquality().hash(_respuestas),leadEmail,const DeepCollectionEquality().hash(errorEnvio));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_preguntas),const DeepCollectionEquality().hash(_respuestas),const DeepCollectionEquality().hash(errorEnvio));
 
 @override
 String toString() {
-  return 'EstadoFiltro(preguntas: $preguntas, respuestas: $respuestas, leadEmail: $leadEmail, errorEnvio: $errorEnvio)';
+  return 'EstadoFiltro(preguntas: $preguntas, respuestas: $respuestas, errorEnvio: $errorEnvio)';
 }
 
 
@@ -264,7 +262,7 @@ abstract mixin class _$EstadoFiltroCopyWith<$Res> implements $EstadoFiltroCopyWi
   factory _$EstadoFiltroCopyWith(_EstadoFiltro value, $Res Function(_EstadoFiltro) _then) = __$EstadoFiltroCopyWithImpl;
 @override @useResult
 $Res call({
- List<PreguntaFiltro> preguntas, Map<int, bool> respuestas, String? leadEmail, Object? errorEnvio
+ List<PreguntaFiltro> preguntas, Map<int, bool> respuestas, Object? errorEnvio
 });
 
 
@@ -281,12 +279,11 @@ class __$EstadoFiltroCopyWithImpl<$Res>
 
 /// Create a copy of EstadoFiltro
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? preguntas = null,Object? respuestas = null,Object? leadEmail = freezed,Object? errorEnvio = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? preguntas = null,Object? respuestas = null,Object? errorEnvio = freezed,}) {
   return _then(_EstadoFiltro(
 preguntas: null == preguntas ? _self._preguntas : preguntas // ignore: cast_nullable_to_non_nullable
 as List<PreguntaFiltro>,respuestas: null == respuestas ? _self._respuestas : respuestas // ignore: cast_nullable_to_non_nullable
-as Map<int, bool>,leadEmail: freezed == leadEmail ? _self.leadEmail : leadEmail // ignore: cast_nullable_to_non_nullable
-as String?,errorEnvio: freezed == errorEnvio ? _self.errorEnvio : errorEnvio ,
+as Map<int, bool>,errorEnvio: freezed == errorEnvio ? _self.errorEnvio : errorEnvio ,
   ));
 }
 

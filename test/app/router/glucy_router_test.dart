@@ -23,7 +23,10 @@ class AuthRepositoryFalso implements AuthRepository {
   final Usuario? almacenada;
 
   @override
-  Future<Usuario> iniciarSesion({String? conexion}) async => almacenada!;
+  Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async => almacenada!;
+
+  @override
+  Future<Usuario> entrarComoAnonimo() async => throw UnimplementedError();
 
   @override
   Future<Usuario?> restaurarSesion() async => almacenada;
@@ -42,7 +45,10 @@ class AuthRepositoryDinamica implements AuthRepository {
   Usuario? alIniciar;
 
   @override
-  Future<Usuario> iniciarSesion({String? conexion}) async => alIniciar!;
+  Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async => alIniciar!;
+
+  @override
+  Future<Usuario> entrarComoAnonimo() async => throw UnimplementedError();
 
   @override
   Future<Usuario?> restaurarSesion() async => almacenada;
@@ -63,7 +69,10 @@ class AuthRepositoryQueNuncaResuelveAlIniciar implements AuthRepository {
   final Completer<Usuario> _pendiente = Completer<Usuario>();
 
   @override
-  Future<Usuario> iniciarSesion({String? conexion}) => _pendiente.future;
+  Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) => _pendiente.future;
+
+  @override
+  Future<Usuario> entrarComoAnonimo() async => throw UnimplementedError();
 
   @override
   Future<Usuario?> restaurarSesion() async => null;
@@ -92,11 +101,8 @@ class PrecalificacionRepositoryFalso implements PrecalificacionRepository {
       const [PreguntaFiltro(id: 1, codigo: 'q1', texto: 'Pregunta de prueba', orden: 1, version: 1)];
 
   @override
-  Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) async =>
+  Future<Veredicto> evaluar(Map<int, bool> respuestas) async =>
       Veredicto(id: 1, resultado: resultado, motivo: resultado == Resultado.apto ? null : 'motivo de prueba');
-
-  @override
-  Future<void> vincular(int precalificacionId) async {}
 }
 
 /// El controlador del filtro tambien lee `embudoStoreProvider` al montarse
@@ -105,7 +111,6 @@ class PrecalificacionRepositoryFalso implements PrecalificacionRepository {
 /// una respuesta de un canal de plataforma que no existe en el test.
 class EmbudoStoreFalso implements EmbudoStore {
   Map<int, bool> progreso = {};
-  int? precalificacionId;
 
   @override
   Future<void> guardarProgreso(Map<int, bool> respuestas) async => progreso = respuestas;
@@ -114,16 +119,7 @@ class EmbudoStoreFalso implements EmbudoStore {
   Future<Map<int, bool>> leerProgreso() async => progreso;
 
   @override
-  Future<void> guardarPrecalificacion(int id) async => precalificacionId = id;
-
-  @override
-  Future<int?> leerPrecalificacion() async => precalificacionId;
-
-  @override
-  Future<void> limpiar() async {
-    progreso = {};
-    precalificacionId = null;
-  }
+  Future<void> limpiar() async => progreso = {};
 }
 
 Future<GoRouter> montar(
@@ -163,10 +159,6 @@ Future<void> _completarFiltroClinico(WidgetTester tester, GoRouter router) async
   await tester.pumpAndSettle();
 
   await tester.tap(find.text('Sí'));
-  await tester.pumpAndSettle();
-
-  // El correo (Task 17) tambien es obligatorio para habilitar el envio.
-  await tester.enterText(find.byKey(const Key('campo-correo-filtro')), 'maria@ejemplo.com');
   await tester.pumpAndSettle();
 
   await tester.tap(find.text('Ver mi resultado'));

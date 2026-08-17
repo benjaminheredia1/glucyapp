@@ -16,7 +16,6 @@ const _preguntas = [
 /// de plataforma en un test unitario puro.
 class EmbudoStoreFalso implements EmbudoStore {
   Map<int, bool> progreso = {};
-  int? precalificacionId;
 
   @override
   Future<void> guardarProgreso(Map<int, bool> respuestas) async => progreso = respuestas;
@@ -25,35 +24,7 @@ class EmbudoStoreFalso implements EmbudoStore {
   Future<Map<int, bool>> leerProgreso() async => progreso;
 
   @override
-  Future<void> guardarPrecalificacion(int id) async => precalificacionId = id;
-
-  @override
-  Future<int?> leerPrecalificacion() async => precalificacionId;
-
-  @override
-  Future<void> limpiar() async {
-    progreso = {};
-    precalificacionId = null;
-  }
-}
-
-/// Para probar que un fallo al guardar el id localmente no se confunde con
-/// un fallo de envio: el servidor ya evaluo con exito en ese punto.
-class _EmbudoStoreQueFallaAlGuardarId implements EmbudoStore {
-  @override
-  Future<void> guardarProgreso(Map<int, bool> respuestas) async {}
-
-  @override
-  Future<Map<int, bool>> leerProgreso() async => {};
-
-  @override
-  Future<void> guardarPrecalificacion(int id) async => throw Exception('disco lleno');
-
-  @override
-  Future<int?> leerPrecalificacion() async => null;
-
-  @override
-  Future<void> limpiar() async {}
+  Future<void> limpiar() async => progreso = {};
 }
 
 class RepoFalso implements PrecalificacionRepository {
@@ -62,36 +33,28 @@ class RepoFalso implements PrecalificacionRepository {
   Veredicto veredicto;
   Object? errorAlEvaluar;
   Map<int, bool>? enviadas;
-  int vinculadas = 0;
 
   @override
   Future<List<PreguntaFiltro>> preguntas() async => _preguntas;
 
   @override
-  Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) async {
+  Future<Veredicto> evaluar(Map<int, bool> respuestas) async {
     enviadas = respuestas;
     if (errorAlEvaluar != null) throw errorAlEvaluar!;
 
     return veredicto;
   }
-
-  @override
-  Future<void> vincular(int precalificacionId) async => vinculadas++;
 }
 
 /// Solo para la prueba de `retry: null`: falla ya en `preguntas()`, que es lo
-/// unico que corre dentro de `build()`. `evaluar()`/`vincular()` no hace
-/// falta que hagan nada util, esa prueba nunca llega a llamarlos.
+/// unico que corre dentro de `build()`. `evaluar()` no hace falta que haga
+/// nada util, esa prueba nunca llega a llamarlo.
 class RepoFalsoQueFallaAlCargar implements PrecalificacionRepository {
   @override
   Future<List<PreguntaFiltro>> preguntas() async => throw const FalloRed();
 
   @override
-  Future<Veredicto> evaluar(Map<int, bool> respuestas, {String? leadEmail}) async =>
-      throw UnimplementedError();
-
-  @override
-  Future<void> vincular(int precalificacionId) async => throw UnimplementedError();
+  Future<Veredicto> evaluar(Map<int, bool> respuestas) async => throw UnimplementedError();
 }
 
 ProviderContainer contenedor(PrecalificacionRepository repo, {EmbudoStore? store}) {
@@ -117,27 +80,23 @@ void main() {
     expect(estado.completo, isFalse);
   });
 
+  test('el estado esta completo en cuanto estan todas respondidas: no hay correo', () {
+    const estado = EstadoFiltro(preguntas: _preguntas, respuestas: {1: true, 2: false});
+
+    expect(estado.todasRespondidas, isTrue);
+    expect(estado.completo, isTrue);
+  });
+
   test('el estado no esta completo hasta responderlas todas', () async {
     final c = contenedor(RepoFalso());
     await c.read(filtroClinicoControllerProvider.future);
     final notifier = c.read(filtroClinicoControllerProvider.notifier);
-    notifier.escribirCorreo('maria@ejemplo.com');
 
     notifier.responder(1, true);
     expect(c.read(filtroClinicoControllerProvider).value!.completo, isFalse);
 
     notifier.responder(2, false);
     expect(c.read(filtroClinicoControllerProvider).value!.completo, isTrue);
-  });
-
-  test('el estado no esta completo sin un correo valido, aunque este todo respondido', () {
-    const estado = EstadoFiltro(preguntas: _preguntas, respuestas: {1: true, 2: false});
-
-    expect(estado.todasRespondidas, isTrue);
-    expect(estado.completo, isFalse);
-
-    expect(estado.copyWith(leadEmail: 'no-es-un-correo').completo, isFalse);
-    expect(estado.copyWith(leadEmail: 'maria@ejemplo.com').completo, isTrue);
   });
 
   test('build() restaura el progreso guardado por una sesion anterior', () async {
@@ -169,38 +128,6 @@ void main() {
     expect(store.progreso, {1: true});
   });
 
-  test('enviar() con exito guarda el id del veredicto para vincularlo despues', () async {
-    final store = EmbudoStoreFalso();
-    final repo = RepoFalso(veredicto: const Veredicto(id: 42, resultado: Resultado.apto));
-    final c = contenedor(repo, store: store);
-    await c.read(filtroClinicoControllerProvider.future);
-    final notifier = c.read(filtroClinicoControllerProvider.notifier);
-
-    notifier.responder(1, true);
-    notifier.responder(2, false);
-    notifier.escribirCorreo('maria@ejemplo.com');
-    await notifier.enviar();
-
-    expect(store.precalificacionId, 42);
-  });
-
-  test('un fallo al guardar el id localmente no marca error ni bloquea el envio', () async {
-    final repo = RepoFalso(veredicto: const Veredicto(id: 42, resultado: Resultado.apto));
-    final c = contenedor(repo, store: _EmbudoStoreQueFallaAlGuardarId());
-    await c.read(filtroClinicoControllerProvider.future);
-    final notifier = c.read(filtroClinicoControllerProvider.notifier);
-
-    notifier.responder(1, true);
-    notifier.responder(2, false);
-    notifier.escribirCorreo('maria@ejemplo.com');
-
-    final veredicto = await notifier.enviar();
-
-    expect(veredicto, isNotNull);
-    expect(veredicto!.id, 42);
-    expect(c.read(filtroClinicoControllerProvider).value!.errorEnvio, isNull);
-  });
-
   test('responder dos veces la misma pregunta sustituye la respuesta', () async {
     final c = contenedor(RepoFalso());
     await c.read(filtroClinicoControllerProvider.future);
@@ -220,7 +147,6 @@ void main() {
 
     notifier.responder(1, true);
     notifier.responder(2, false);
-    notifier.escribirCorreo('maria@ejemplo.com');
 
     final veredicto = await notifier.enviar();
 
@@ -253,7 +179,6 @@ void main() {
 
     notifier.responder(1, true);
     notifier.responder(2, true);
-    notifier.escribirCorreo('maria@ejemplo.com');
 
     expect(await notifier.enviar(), isNull);
 
@@ -271,7 +196,6 @@ void main() {
 
     notifier.responder(1, true);
     notifier.responder(2, true);
-    notifier.escribirCorreo('maria@ejemplo.com');
     await notifier.enviar();
 
     repo.errorAlEvaluar = null;

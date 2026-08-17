@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../precalificacion/data/vinculador_precalificacion.dart';
 import '../data/auth0_gateway.dart';
 import '../data/auth_repository.dart';
 import '../domain/sesion.dart';
@@ -25,23 +24,8 @@ class SesionController extends AsyncNotifier<Sesion> {
     } on Auth0Cancelado {
       // Echarse atras en Universal Login no es un fallo que reportar.
       state = const AsyncData(Sesion.noAutenticado());
-
-      return;
     } catch (e, pila) {
       state = AsyncError(e, pila);
-
-      return;
-    }
-
-    // Recupera la precalificacion que se respondio antes de tener cuenta.
-    // Fuera del try de arriba y con su propio catch: ni siquiera un fallo al
-    // construir `vinculadorPrecalificacionProvider` (no solo un fallo dentro
-    // de `vincularPendiente()`, que ya se protege a si mismo) puede pisar el
-    // estado de sesion autenticada que se acaba de fijar.
-    try {
-      await ref.read(vinculadorPrecalificacionProvider).vincularPendiente();
-    } catch (_) {
-      // No propaga: entrar no puede fallar por esto.
     }
   }
 

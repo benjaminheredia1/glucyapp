@@ -79,4 +79,12 @@ void main() {
 
     expect(await store.leerProgreso(), isEmpty);
   });
+
+  test('limpiar() borra el progreso', () async {
+    await store.guardarProgreso({1: true});
+
+    await store.limpiar();
+
+    expect(await store.leerProgreso(), isEmpty);
+  });
 }

@@ -17,7 +17,6 @@ abstract class EstadoFiltro with _$EstadoFiltro {
   const factory EstadoFiltro({
     required List<PreguntaFiltro> preguntas,
     required Map<int, bool> respuestas,
-    String? leadEmail,
     // Fallo de un `enviar()` anterior, para pintar un aviso sin tirar las
     // respuestas ya dadas. Es de la pantalla, no de dominio: no viaja a la
     // API ni se compara en tests salvo por su presencia.
@@ -28,12 +27,9 @@ abstract class EstadoFiltro with _$EstadoFiltro {
   bool get todasRespondidas =>
       preguntas.isNotEmpty && respuestas.length == preguntas.length;
 
-  /// El correo es obligatorio: sin el, `vincular` no puede cotejar nada y las
-  /// respuestas se perderian al crear la cuenta.
-  bool get correoValido =>
-      leadEmail != null && RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(leadEmail!);
-
-  bool get completo => todasRespondidas && correoValido;
+  /// Sin correo: la precalificacion viaja con el Bearer de la identidad
+  /// anonima y el backend ya sabe de quien es.
+  bool get completo => todasRespondidas;
 
   int get respondidas => respuestas.length;
 }
@@ -73,16 +69,7 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
     ref.read(embudoStoreProvider).guardarProgreso(respuestas).ignore();
   }
 
-  void escribirCorreo(String correo) {
-    final actual = state.value;
-
-    if (actual == null) return;
-
-    state = AsyncData(actual.copyWith(leadEmail: correo.trim()));
-  }
-
-  /// Devuelve `null` si falta responder algo, falta el correo o si el envio
-  /// fallo. El veredicto lo calcula el servidor: aqui no hay ninguna regla
+  /// Devuelve `null` si falta responder algo o si el envio fallo. El veredicto lo calcula el servidor: aqui no hay ninguna regla
   /// clinica.
   ///
   /// Un fallo de `evaluar()` NO tira el estado a `AsyncError`: eso reemplazaria
@@ -99,21 +86,7 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
     try {
       final veredicto = await ref
           .read(precalificacionRepositoryProvider)
-          .evaluar(actual.respuestas, leadEmail: actual.leadEmail);
-
-      // Se guarda el id para que VinculadorPrecalificacion pueda atarla a la
-      // cuenta en cuanto el usuario entre con el mismo correo. Mejor
-      // esfuerzo, con su propio `catchError`: si esto falla, el servidor ya
-      // evaluo y persistio la precalificacion, asi que no es un fallo de
-      // envio. Tratarlo como uno dejaria el boton en "Reintentar", y
-      // reintentar aqui es volver a llamar a evaluar() -- creando una
-      // precalificacion duplicada en el servidor. Perder el id local es
-      // recuperable (VinculadorPrecalificacion simplemente no tendria nada
-      // que vincular); un envio duplicado no lo es.
-      await ref
-          .read(embudoStoreProvider)
-          .guardarPrecalificacion(veredicto.id)
-          .catchError((_) {});
+          .evaluar(actual.respuestas);
 
       return veredicto;
     } catch (e) {

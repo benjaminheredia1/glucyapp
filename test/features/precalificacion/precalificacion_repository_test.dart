@@ -57,7 +57,6 @@ void main() {
         'motivo': 'embarazo o lactancia',
       }),
       data: {
-        'leadEmail': 'maria@ejemplo.com',
         'respuestas': [
           {'preguntaId': 1, 'respuesta': 'si'},
           {'preguntaId': 2, 'respuesta': 'no'},
@@ -65,20 +64,26 @@ void main() {
       },
     );
 
-    final veredicto = await repo.evaluar(
-      {1: true, 2: false},
-      leadEmail: 'maria@ejemplo.com',
-    );
+    final veredicto = await repo.evaluar({1: true, 2: false});
 
     expect(veredicto.id, 42);
     expect(veredicto.resultado, Resultado.noApto);
     expect(veredicto.motivo, 'embarazo o lactancia');
   });
 
-  test('evaluar() omite leadEmail cuando no hay correo', () async {
-    adaptador.onPost(
+  test('evaluar() viaja por el cliente autenticado (Bearer de la identidad anonima)', () async {
+    // Dos Dio distintos: solo el autenticado tiene ruta registrada para
+    // /evaluar. Si la peticion saliera por el publico, su adaptador (sin rutas)
+    // la rechazaria y el test fallaria.
+    final dioPublico = Dio(BaseOptions(baseUrl: 'http://localhost:8000/api'));
+    final dioAutenticado = Dio(BaseOptions(baseUrl: 'http://localhost:8000/api'));
+    DioAdapter(dio: dioPublico);
+    final adaptadorAutenticado = DioAdapter(dio: dioAutenticado);
+    dioAutenticado.interceptors.add(ErrorInterceptor());
+
+    adaptadorAutenticado.onPost(
       '/precalificacion/evaluar',
-      (servidor) => servidor.reply(201, {'id': 43, 'resultado': 'apto', 'motivo': null}),
+      (servidor) => servidor.reply(201, {'id': 12, 'resultado': 'apto', 'motivo': null}),
       data: {
         'respuestas': [
           {'preguntaId': 1, 'respuesta': 'si'},
@@ -86,7 +91,9 @@ void main() {
       },
     );
 
-    final veredicto = await repo.evaluar({1: true});
+    final repoDoble = PrecalificacionRepository(PrecalificacionApi(dioPublico, dioAutenticado));
+
+    final veredicto = await repoDoble.evaluar({1: true});
 
     expect(veredicto.resultado, Resultado.apto);
     expect(veredicto.motivo, isNull);
@@ -106,25 +113,5 @@ void main() {
     );
 
     await expectLater(repo.evaluar({1: true}), throwsA(isA<FalloValidacion>()));
-  });
-
-  test('vincular() llama a la ruta del id', () async {
-    adaptador.onPost(
-      '/precalificaciones/42/vincular',
-      (servidor) => servidor.reply(200, {'id': 42, 'pacienteId': 7}),
-      data: null,
-    );
-
-    await expectLater(repo.vincular(42), completes);
-  });
-
-  test('vincular() propaga el 403 de una precalificacion ajena', () async {
-    adaptador.onPost(
-      '/precalificaciones/99/vincular',
-      (servidor) => servidor.reply(403, {'message': 'La precalificacion no corresponde a este usuario.'}),
-      data: null,
-    );
-
-    await expectLater(repo.vincular(99), throwsA(isA<FalloAuth>()));
   });
 }

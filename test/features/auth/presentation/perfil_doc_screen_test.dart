@@ -12,7 +12,10 @@ class AuthRepositoryFalso implements AuthRepository {
   int cierres = 0;
 
   @override
-  Future<Usuario> iniciarSesion({String? conexion}) async => throw UnimplementedError();
+  Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async => throw UnimplementedError();
+
+  @override
+  Future<Usuario> entrarComoAnonimo() async => throw UnimplementedError();
 
   @override
   Future<Usuario?> restaurarSesion() async => null;

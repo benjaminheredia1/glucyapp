@@ -6,8 +6,10 @@ import '../../../core/network/dio_client.dart';
 import '../domain/pregunta_filtro.dart';
 import '../domain/veredicto.dart';
 
-/// Dos clientes: el filtro corre antes de que exista la cuenta, asi que sus dos
-/// rutas son publicas; `vincular` en cambio exige sesion.
+/// Dos clientes: `preguntas` es publica y no lleva Bearer; `evaluar` tambien
+/// es publica pero viaja por el autenticado para que, con la identidad
+/// anonima (POST /auth/anonimo), el backend ate la precalificacion al
+/// paciente de la sesion.
 class PrecalificacionApi {
   const PrecalificacionApi(this._publico, this._autenticado);
 
@@ -28,20 +30,12 @@ class PrecalificacionApi {
 
   Future<Veredicto> evaluar(Map<String, dynamic> cuerpo) async {
     try {
-      final respuesta = await _publico.post<Map<String, dynamic>>(
+      final respuesta = await _autenticado.post<Map<String, dynamic>>(
         '/precalificacion/evaluar',
         data: cuerpo,
       );
 
       return Veredicto.fromJson(respuesta.data!);
-    } on DioException catch (e) {
-      throw _fallo(e);
-    }
-  }
-
-  Future<void> vincular(int precalificacionId) async {
-    try {
-      await _autenticado.post<void>('/precalificaciones/$precalificacionId/vincular');
     } on DioException catch (e) {
       throw _fallo(e);
     }

@@ -14,7 +14,7 @@ class AuthRepositoryFalso implements AuthRepository {
   int intentos = 0;
 
   @override
-  Future<Usuario> iniciarSesion({String? conexion}) async {
+  Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async {
     intentos++;
     // Un retraso real (no solo microtasks) para que el estado de carga sea
     // observable: `tester.tap` agota la cola de microtasks antes de volver,
@@ -26,6 +26,9 @@ class AuthRepositoryFalso implements AuthRepository {
 
     return _maria;
   }
+
+  @override
+  Future<Usuario> entrarComoAnonimo() async => throw UnimplementedError();
 
   @override
   Future<Usuario?> restaurarSesion() async => null;
