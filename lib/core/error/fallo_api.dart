@@ -41,6 +41,12 @@ class FalloValidacion extends FalloApi {
   }
 }
 
+/// 409. En esta API: el correo o la identidad de Auth0 ya pertenece a otra
+/// cuenta al reclamar una identidad anonima. La cuenta anonima no se toca.
+class FalloConflicto extends FalloApi {
+  const FalloConflicto([super.mensaje = 'Ese dato ya existe.']);
+}
+
 /// 429. La API limita varias rutas con `throttle`.
 class FalloLimite extends FalloApi {
   const FalloLimite(this.reintentarEn, [super.mensaje = 'Demasiados intentos. Prueba en un momento.']);

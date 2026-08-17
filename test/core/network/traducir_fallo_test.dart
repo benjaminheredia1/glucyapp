@@ -48,6 +48,19 @@ void main() {
       expect(traducirFallo(conRespuesta(404)), isA<FalloNoEncontrado>());
     });
 
+    test('409 es FalloConflicto y conserva el mensaje del backend', () {
+      final fallo = traducirFallo(
+        conRespuesta(409, cuerpo: {'message': 'Ya existe una cuenta con este correo. Inicia sesion con ella.'}),
+      );
+
+      expect(fallo, isA<FalloConflicto>());
+      expect(fallo.mensaje, 'Ya existe una cuenta con este correo. Inicia sesion con ella.');
+    });
+
+    test('409 sin mensaje usa el texto por defecto', () {
+      expect(traducirFallo(conRespuesta(409)).mensaje, 'Ese dato ya existe.');
+    });
+
     test('422 conserva el mapa de errores de Laravel', () {
       final fallo = traducirFallo(conRespuesta(422, cuerpo: {
         'message': 'The given data was invalid.',

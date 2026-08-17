@@ -38,6 +38,8 @@ FalloApi traducirFallo(DioException e) {
       return FalloAuth(mensaje ?? 'Tu sesion no es valida.');
     case 404:
       return FalloNoEncontrado(mensaje ?? 'No encontramos ese recurso.');
+    case 409:
+      return FalloConflicto(mensaje ?? 'Ese dato ya existe.');
     case 422:
       return FalloValidacion(mensaje ?? 'Revisa los datos.', _errores(datos));
     case 429:
