@@ -13,6 +13,7 @@ import '../../home/home_screen.dart';
 import '../../onboarding/onboarding_screen.dart';
 import '../../onboarding/questions_components/clinical_filter_widget.dart';
 import '../../onboarding/questions_components/crear_cuenta_screen.dart';
+import '../../onboarding/questions_components/filtro1_screen.dart';
 import '../../onboarding/questions_components/no_apto_screen.dart';
 import '../../onboarding/splash_screen.dart';
 import '../../warning/warning.dart';
@@ -47,7 +48,13 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
         path: Rutas.filtroClinico,
         builder: (context, estado) => ClinicalFilterScreen(
           onVeredicto: (veredicto) => switch (veredicto.resultado) {
-            Resultado.apto => context.go(Rutas.crearCuenta),
+            // Apto sigue a "Filtro 1 OK" y de ahi al embudo de estudios
+            // (Filtro1Screen -> EstudiosScreen -> ... -> PrediagScreen), que
+            // ya encadena con Navigator.push y termina en CrearCuentaScreen.
+            // La cuenta se crea despues del pre-diagnostico, no aqui.
+            Resultado.apto => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const Filtro1Screen()),
+              ),
             Resultado.urgente => context.go(Rutas.urgencia),
             Resultado.noApto => context.go(
                 Rutas.noApto,

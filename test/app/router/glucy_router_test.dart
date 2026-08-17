@@ -13,6 +13,8 @@ import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import 'package:glucy_app/features/precalificacion/data/precalificacion_repository.dart';
 import 'package:glucy_app/features/precalificacion/domain/pregunta_filtro.dart';
 import 'package:glucy_app/features/precalificacion/domain/veredicto.dart';
+import 'package:glucy_app/onboarding/questions_components/crear_cuenta_screen.dart';
+import 'package:glucy_app/onboarding/questions_components/filtro1_screen.dart';
 import 'package:go_router/go_router.dart';
 
 class AuthRepositoryFalso implements AuthRepository {
@@ -239,7 +241,18 @@ void main() {
   // estas pruebas, cambiar por ejemplo `Resultado.urgente` para que rutee a
   // `Rutas.noApto` compilaria igual y el resto de la suite seguiria en
   // verde: nada mas ejercita las tres ramas.
-  testWidgets('el veredicto apto navega a crear cuenta', (tester) async {
+  // Segun el prototipo (Glucy AI .html, `submitPrecal`), apto sigue a
+  // "Filtro 1 OK" y de ahi a los estudios; la cuenta se crea recien despues
+  // del pre-diagnostico (pantalla 14), no al salir del filtro clinico.
+  testWidgets('el veredicto apto navega a filtro 1 OK, no a crear cuenta', (tester) async {
+    // Filtro1Screen es una Column fija sin scroll: en el lienzo por defecto
+    // del test (800x600) desborda 45px de alto y revienta el test. Se
+    // mantiene el ancho porque con 390px son onboarding y el filtro clinico
+    // los que desbordan (la fuente Ahem del test es mas ancha que la real).
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
     final router = await montar(
       tester,
       null,
@@ -248,7 +261,8 @@ void main() {
 
     await _completarFiltroClinico(tester, router);
 
-    expect(rutaActual(router), Rutas.crearCuenta);
+    expect(find.byType(Filtro1Screen), findsOneWidget);
+    expect(find.byType(CrearCuentaScreen), findsNothing);
   });
 
   testWidgets('el veredicto urgente navega a la pantalla de urgencia', (tester) async {
