@@ -22,6 +22,7 @@ class AppConfig {
     required this.auth0ClientId,
     required this.auth0Audience,
     required this.auth0Scheme,
+    required this.zonaHoraria,
   });
 
   final Uri apiBaseUrl;
@@ -31,6 +32,9 @@ class AppConfig {
   final String auth0ClientId;
   final String auth0Audience;
   final String auth0Scheme;
+  /// Zona IANA del paciente. El backend la necesita para saber que es
+  /// "08:00" al generar las tomas del dia; el telefono solo da abreviaturas.
+  final String zonaHoraria;
 
   static const _timeoutPorDefecto = Duration(milliseconds: 15000);
 
@@ -52,6 +56,7 @@ class AppConfig {
       auth0ClientId: _exigido(env, 'AUTH0_CLIENT_ID'),
       auth0Audience: _exigido(env, 'AUTH0_AUDIENCE'),
       auth0Scheme: (env['AUTH0_SCHEME'] ?? '').isEmpty ? 'glucy' : env['AUTH0_SCHEME']!,
+      zonaHoraria: (env['ZONA_HORARIA'] ?? '').isEmpty ? 'America/La_Paz' : env['ZONA_HORARIA']!,
     );
   }
 

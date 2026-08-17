@@ -25,6 +25,11 @@ void main() {
       expect(config.auth0Scheme, 'glucy');
     });
 
+    test('sin ZONA_HORARIA asume America/La_Paz; con ella, la respeta', () {
+      expect(AppConfig.desdeMapa(valido()).zonaHoraria, 'America/La_Paz');
+      expect(AppConfig.desdeMapa({...valido(), 'ZONA_HORARIA': 'Europe/Madrid'}).zonaHoraria, 'Europe/Madrid');
+    });
+
     test('falla si falta API_BASE_URL', () {
       final env = valido()..remove('API_BASE_URL');
 
