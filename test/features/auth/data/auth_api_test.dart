@@ -86,6 +86,64 @@ void main() {
     });
   });
 
+  group('AuthApi.anonimo', () {
+    test('crea la identidad temporal y devuelve token y usuario', () async {
+      adaptador.onPost(
+        '/auth/anonimo',
+        (servidor) => servidor.reply(201, {
+          'token': '1|anon-abc',
+          'usuario': {'id': 1, 'name': 'Paciente', 'email': null, 'rol': 'paciente', 'esTemporal': true},
+        }),
+        data: {'dispositivo': 'android-1'},
+      );
+
+      final respuesta = await AuthApi(dio).anonimo(dispositivo: 'android-1');
+
+      expect(respuesta.token, '1|anon-abc');
+      expect(respuesta.usuario.esTemporal, isTrue);
+      expect(respuesta.usuario.email, isNull);
+    });
+
+    test('un 429 se propaga como FalloLimite', () async {
+      adaptador.onPost(
+        '/auth/anonimo',
+        (servidor) => servidor.reply(429, {'message': 'Too Many Attempts.'}),
+        data: {'dispositivo': 'api'},
+      );
+
+      await expectLater(AuthApi(dio).anonimo(), throwsA(isA<FalloLimite>()));
+    });
+  });
+
+  group('AuthApi.intercambiar con identidad anonima', () {
+    test('manda el Bearer anonimo cuando se le pasa', () async {
+      adaptador.onPost(
+        '/auth/auth0',
+        (servidor) => servidor.reply(200, {'token': 'sanctum-real', 'usuario': usuarioJson()}),
+        data: {'accessToken': 'auth0-abc', 'dispositivo': 'api'},
+        headers: {'Authorization': 'Bearer 1|anon-abc'},
+      );
+
+      final respuesta = await AuthApi(dio).intercambiar('auth0-abc', tokenAnonimo: '1|anon-abc');
+
+      expect(respuesta.token, 'sanctum-real');
+    });
+
+    test('un 409 se propaga como FalloConflicto', () async {
+      adaptador.onPost(
+        '/auth/auth0',
+        (servidor) => servidor.reply(409, {'message': 'Ya existe una cuenta con este correo. Inicia sesion con ella.'}),
+        data: {'accessToken': 'auth0-abc', 'dispositivo': 'api'},
+        headers: {'Authorization': 'Bearer 1|anon-abc'},
+      );
+
+      await expectLater(
+        AuthApi(dio).intercambiar('auth0-abc', tokenAnonimo: '1|anon-abc'),
+        throwsA(isA<FalloConflicto>()),
+      );
+    });
+  });
+
   group('UsuarioApi', () {
     test('actual() devuelve el usuario de la sesion', () async {
       adaptador.onGet('/user', (servidor) => servidor.reply(200, usuarioJson()));
