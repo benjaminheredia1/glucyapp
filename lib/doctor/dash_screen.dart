@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:glucy_app/doctor/doctor_data.dart';
 import 'package:glucy_app/doctor/doctor_tabbar.dart';
+import 'package:glucy_app/doctor/asignar_medicacion_screen.dart';
 import 'package:glucy_app/doctor/validar_estudios_screen.dart';
 
 class _Kpi {
@@ -96,6 +97,36 @@ class DashScreen extends StatelessWidget {
                                   Text('Estudios por validar',
                                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: DoctorColors.deep)),
                                   Text('Aprueba o rechaza las cargas de tus pacientes',
+                                      style: TextStyle(fontSize: 11.5, color: DoctorColors.tealText)),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, size: 18, color: DoctorColors.primary),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      key: const Key('accion-asignar-medicacion'),
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => Navigator.of(context)
+                          .push(MaterialPageRoute(builder: (_) => const AsignarMedicacionScreen())),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(color: DoctorColors.tealBg, borderRadius: BorderRadius.circular(12)),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.medication_outlined, size: 20, color: DoctorColors.primary),
+                            SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Asignar medicación',
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: DoctorColors.deep)),
+                                  Text('Medicamento, dosis y horarios: el paciente ve sus tomas cada día',
                                       style: TextStyle(fontSize: 11.5, color: DoctorColors.tealText)),
                                 ],
                               ),
