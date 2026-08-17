@@ -22,7 +22,12 @@ class PerfilPaciente {
             ? null
             : DateTime.tryParse(json['fechaNacimiento'] as String),
         sexo: json['sexo'] as String?,
-        pesoKg: (json['pesoKg'] as num?)?.toDouble(),
+        // MySQL serializa el decimal como string ("50.00"); tolerar ambos.
+        pesoKg: switch (json['pesoKg']) {
+          final num peso => peso.toDouble(),
+          final String peso => double.tryParse(peso),
+          _ => null,
+        },
         tallaCm: switch (json['tallaCm']) {
           final int talla => talla,
           final String talla => int.tryParse(talla),

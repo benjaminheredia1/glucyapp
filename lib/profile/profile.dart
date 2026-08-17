@@ -102,6 +102,11 @@ class _ProfileState extends ConsumerState<Profile> {
     } on FalloApi catch (fallo) {
       if (!mounted) return;
       setState(() => _error = fallo.mensaje);
+    } catch (e) {
+      // Un fallo que no es de la API (parsear una respuesta rara, por
+      // ejemplo) tampoco puede dejar la pantalla colgada sin explicacion.
+      if (!mounted) return;
+      setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
