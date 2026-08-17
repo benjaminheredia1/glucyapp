@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glucy_app/core/error/fallo_api.dart';
 import 'package:glucy_app/features/mediciones/medicion_api.dart';
+import 'package:glucy_app/features/mediciones/mediciones_provider.dart';
 import 'package:glucy_app/home/reg_ok_screen.dart';
 
 class GlucyColors {
@@ -57,14 +58,24 @@ class _RegistrarScreenState extends ConsumerState<RegistrarScreen> {
     setState(() => _guardando = true);
 
     try {
-      await ref.read(medicionApiProvider).registrar(
+      final medicion = await ref.read(medicionApiProvider).registrar(
             valor: _entryNum.toDouble(),
             momento: _moment,
           );
 
+      // Inicio y Progreso pintan `medicionesProvider`: sin esto, la grafica
+      // seguiria mostrando lo de antes al volver.
+      ref.invalidate(medicionesProvider);
+
       if (!mounted) return;
 
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => RegOkScreen(glucoseEntry: _entry)));
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => RegOkScreen(
+          glucoseEntry: _entry,
+          momento: _moments.firstWhere((m) => m.$1 == _moment).$2,
+          medidoEn: medicion.medidoEn,
+        ),
+      ));
     } on FalloApi catch (fallo) {
       if (!mounted) return;
 

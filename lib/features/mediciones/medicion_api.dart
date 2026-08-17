@@ -14,9 +14,16 @@ class Medicion {
 
   factory Medicion.fromJson(Map<String, dynamic> json) => Medicion(
         id: json['id'] as int,
-        valor: (json['valor'] as num).toDouble(),
+        // MySQL serializa el decimal como string ("108.00"); tolerar ambos.
+        valor: switch (json['valor']) {
+          final num v => v.toDouble(),
+          final String v => double.parse(v),
+          _ => throw const FormatException('valor ausente en la medicion'),
+        },
         momento: json['momento'] as String,
-        medidoEn: DateTime.parse(json['medidoEn'] as String),
+        // El backend manda UTC ("...Z"); en pantalla se compara con la hora
+        // local del telefono (hoy/ayer, HH:mm).
+        medidoEn: DateTime.parse(json['medidoEn'] as String).toLocal(),
       );
 
   final int id;

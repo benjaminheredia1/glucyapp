@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
 import 'package:glucy_app/features/auth/domain/sesion.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
+import 'package:glucy_app/features/mediciones/medicion_api.dart';
+import 'package:glucy_app/features/mediciones/mediciones_provider.dart';
 import 'package:glucy_app/home/notifs_screen.dart';
 import 'package:glucy_app/home/patient_tabbar.dart';
 import 'package:glucy_app/home/plan_screen.dart';
@@ -35,8 +38,14 @@ class _HomeAction {
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  static const _readings = [166, 154, 149, 141, 138, 132, 124];
-  static const _days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  static const _diasSemana = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+  // Etiqueta visible por valor del enum `momento` del backend (ver RegistrarScreen).
+  static const _momentos = {
+    'ayunas': 'Ayunas',
+    'preprandial': 'Antes de comer',
+    'postprandial': '2 h después',
+  };
 
   static String _saludo(int hora) =>
       hora < 12 ? 'Buenos días,' : hora < 19 ? 'Buenas tardes,' : 'Buenas noches,';
@@ -129,7 +138,7 @@ class HomeScreen extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
                 child: Column(
                   children: [
-                    _glucoseCard(),
+                    _glucoseCard(ref),
                     const SizedBox(height: 13),
                     _todayCard(),
                     const SizedBox(height: 13),
@@ -147,55 +156,133 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _glucoseCard() {
+  static String _cuando(DateTime medidoEn) {
+    final ahora = DateTime.now();
+    final hoy = DateTime(ahora.year, ahora.month, ahora.day);
+    final dia = DateTime(medidoEn.year, medidoEn.month, medidoEn.day);
+    final diff = hoy.difference(dia).inDays;
+    final fecha = diff == 0
+        ? 'hoy'
+        : diff == 1
+            ? 'ayer'
+            : '${medidoEn.day.toString().padLeft(2, '0')}/${medidoEn.month.toString().padLeft(2, '0')}';
+    final hora = '${medidoEn.hour.toString().padLeft(2, '0')}:${medidoEn.minute.toString().padLeft(2, '0')}';
+
+    return '$fecha $hora';
+  }
+
+  /// Ultima glucosa y tendencia de las ultimas 7 mediciones reales. Antes era
+  /// una maqueta fija: registrar no cambiaba nada aqui.
+  Widget _glucoseCard(WidgetRef ref) {
+    final mediciones = ref.watch(medicionesProvider);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: GlucyColors.deep, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        style: const TextStyle(fontFamily: 'Sora', fontSize: 30, fontWeight: FontWeight.w700, color: GlucyColors.accent),
-                        children: [
-                          TextSpan(text: '${_readings.last} '),
-                          const TextSpan(text: 'mg/dL', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: Color(0x99F4FAF9))),
-                        ],
-                      ),
+      child: mediciones.when(
+        loading: () => const SizedBox(
+          height: 150,
+          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: GlucyColors.accent)),
+        ),
+        error: (e, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              e is FalloApi ? e.mensaje : 'No se pudieron cargar tus mediciones.',
+              style: const TextStyle(fontSize: 12.5, color: Color(0xCCF4FAF9)),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              key: const Key('reintentar-mediciones'),
+              onPressed: () => ref.invalidate(medicionesProvider),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: GlucyColors.accent,
+                side: const BorderSide(color: GlucyColors.accent),
+              ),
+              child: const Text('Reintentar'),
+            ),
+          ],
+        ),
+        data: (lista) => lista.isEmpty ? _sinMediciones() : _conMediciones(lista),
+      ),
+    );
+  }
+
+  Widget _sinMediciones() {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Sin mediciones todavía',
+            style: TextStyle(fontFamily: 'Sora', fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+        SizedBox(height: 4),
+        Text('Registra tu primera medición para ver aquí tu tendencia.',
+            style: TextStyle(fontSize: 12.5, color: Color(0x99F4FAF9))),
+      ],
+    );
+  }
+
+  Widget _conMediciones(List<Medicion> lista) {
+    final ultimas = lista.length > 7 ? lista.sublist(lista.length - 7) : lista;
+    final ultima = ultimas.last;
+    final enRango = ultima.valor <= MedicionesResumen.limiteEnRango;
+    final valor = ultima.valor == ultima.valor.roundToDouble()
+        ? ultima.valor.toStringAsFixed(0)
+        : ultima.valor.toStringAsFixed(1);
+
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(fontFamily: 'Sora', fontSize: 30, fontWeight: FontWeight.w700, color: GlucyColors.accent),
+                      children: [
+                        TextSpan(text: '$valor '),
+                        const TextSpan(text: 'mg/dL', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: Color(0x99F4FAF9))),
+                      ],
                     ),
-                    const Text('Ayunas · hoy 08:10', style: TextStyle(fontSize: 11.5, color: Color(0x8CF4FAF9))),
-                  ],
-                ),
+                  ),
+                  Text(
+                    '${_momentos[ultima.momento] ?? ultima.momento} · ${_cuando(ultima.medidoEn)}',
+                    style: const TextStyle(fontSize: 11.5, color: Color(0x8CF4FAF9)),
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: GlucyColors.accent, borderRadius: BorderRadius.circular(999)),
-                child: const Text('En rango', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: GlucyColors.deep)),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: enRango ? GlucyColors.accent : const Color(0xFFE8A33D),
+                borderRadius: BorderRadius.circular(999),
               ),
+              child: Text(enRango ? 'En rango' : 'Alto',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: GlucyColors.deep)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 90,
+          child: CustomPaint(painter: _GlucoseChartPainter([for (final m in ultimas) m.valor])),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: ultimas.length == 1 ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
+            children: [
+              for (final m in ultimas)
+                Text(_diasSemana[m.medidoEn.weekday - 1], style: const TextStyle(fontSize: 10, color: Color(0x73F4FAF9))),
             ],
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 90,
-            child: CustomPaint(painter: _GlucoseChartPainter(_readings)),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [for (final d in _days) Text(d, style: const TextStyle(fontSize: 10, color: Color(0x73F4FAF9)))],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -346,11 +433,14 @@ class HomeScreen extends ConsumerWidget {
 /// Dibuja la línea de glucosa de los últimos 7 días con la banda "en rango"
 /// (110–140 mg/dL), replicando el gráfico SVG del diseño original.
 class _GlucoseChartPainter extends CustomPainter {
-  final List<int> readings;
-  const _GlucoseChartPainter(this.readings);
+  final List<double> readings;
+  _GlucoseChartPainter(this.readings)
+      // La banda 110-140 siempre se ve; el eje se abre si algun valor se sale.
+      : _vMin = [110.0, ...readings].reduce((a, b) => a < b ? a : b) - 5,
+        _vMax = [175.0, ...readings].reduce((a, b) => a > b ? a : b) + 5;
 
-  static const _vMin = 110.0;
-  static const _vMax = 175.0;
+  final double _vMin;
+  final double _vMax;
   static const _top = 14.0;
   static const _bot = 94.0;
   static const _viewW = 320.0;
@@ -371,8 +461,14 @@ class _GlucoseChartPainter extends CustomPainter {
     final bandPaint = Paint()..color = const Color(0x282EE6A8);
     canvas.drawRect(Rect.fromLTRB(0, bandTop, size.width, bandBottom), bandPaint);
 
+    if (readings.isEmpty) return;
+
+    // Mismo margen lateral que la maqueta (26 de 320); el paso se reparte
+    // segun cuantas mediciones haya. Con una sola, va al centro.
+    final paso = readings.length == 1 ? 0.0 : (_viewW - 52) / (readings.length - 1);
+    final x0 = readings.length == 1 ? _viewW / 2 : 26.0;
     final points = <Offset>[
-      for (var i = 0; i < readings.length; i++) Offset((26 + i * 44) * sx, _y(readings[i].toDouble()) * sy),
+      for (var i = 0; i < readings.length; i++) Offset((x0 + i * paso) * sx, _y(readings[i]) * sy),
     ];
 
     final linePaint = Paint()

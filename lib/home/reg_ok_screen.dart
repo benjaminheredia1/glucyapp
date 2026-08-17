@@ -15,7 +15,14 @@ class GlucyColors {
 /// de 3 mediciones y adelanta la tendencia.
 class RegOkScreen extends StatelessWidget {
   final String glucoseEntry;
-  const RegOkScreen({super.key, required this.glucoseEntry});
+  final String momento;
+  final DateTime medidoEn;
+  const RegOkScreen({super.key, required this.glucoseEntry, required this.momento, required this.medidoEn});
+
+  String get _hora {
+    final local = medidoEn.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +46,7 @@ class RegOkScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   const Text('Medición guardada', style: TextStyle(fontFamily: 'Sora', fontSize: 19, fontWeight: FontWeight.w700, color: GlucyColors.deep)),
                   const SizedBox(height: 4),
-                  Text('$glucoseEntry mg/dL · en ayunas · hoy 08:10', style: const TextStyle(fontSize: 12.5, color: Color(0x8C10262A))),
+                  Text('$glucoseEntry mg/dL · ${momento.toLowerCase()} · hoy $_hora', style: const TextStyle(fontSize: 12.5, color: Color(0x8C10262A))),
                 ],
               ),
               const SizedBox(height: 18),

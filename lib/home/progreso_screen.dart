@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:glucy_app/core/error/fallo_api.dart';
+import 'package:glucy_app/features/mediciones/medicion_api.dart';
+import 'package:glucy_app/features/mediciones/mediciones_provider.dart';
 import 'package:glucy_app/home/patient_tabbar.dart';
 
 class GlucyColors {
@@ -12,21 +16,28 @@ class GlucyColors {
 }
 
 /// Tendencia de glucosa y tiempo en rango de los últimos 7/30/90 días.
-class ProgresoScreen extends StatefulWidget {
+class ProgresoScreen extends ConsumerStatefulWidget {
   const ProgresoScreen({super.key});
 
   @override
-  State<ProgresoScreen> createState() => _ProgresoScreenState();
+  ConsumerState<ProgresoScreen> createState() => _ProgresoScreenState();
 }
 
-class _ProgresoScreenState extends State<ProgresoScreen> {
+class _ProgresoScreenState extends ConsumerState<ProgresoScreen> {
   String _range = '30';
   bool _tirInfoOpen = false;
 
-  static const _values = [148, 152, 143, 139, 141, 134, 136, 129, 132, 126, 124, 121];
+  static String _formatear(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
+    // Mediciones reales del rango elegido; antes eran una maqueta fija.
+    final todas = ref.watch(medicionesProvider);
+    final enRango = todas.value?.ultimosDias(int.parse(_range)) ?? const <Medicion>[];
+    final promedio = enRango.promedio;
+    final tir = enRango.porcentajeEnRango;
+
     return Scaffold(
       backgroundColor: GlucyColors.bg,
       body: SafeArea(
@@ -59,32 +70,76 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
                       decoration: BoxDecoration(color: GlucyColors.deep, borderRadius: BorderRadius.circular(16)),
-                      child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Promedio', style: TextStyle(fontSize: 11.5, color: Color(0x99F4FAF9))),
-                                  Text.rich(TextSpan(style: TextStyle(fontFamily: 'Sora', fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white), children: [
-                                    TextSpan(text: '132 '),
-                                    TextSpan(text: 'mg/dL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Color(0x8CF4FAF9))),
-                                  ])),
-                                ],
+                      child: todas.when(
+                        loading: () => const SizedBox(
+                          height: 120,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: GlucyColors.accent)),
+                        ),
+                        error: (e, _) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              e is FalloApi ? e.mensaje : 'No se pudieron cargar tus mediciones.',
+                              style: const TextStyle(fontSize: 12.5, color: Color(0xCCF4FAF9)),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              key: const Key('reintentar-mediciones'),
+                              onPressed: () => ref.invalidate(medicionesProvider),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: GlucyColors.accent,
+                                side: const BorderSide(color: GlucyColors.accent),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(color: GlucyColors.accent, borderRadius: BorderRadius.circular(999)),
-                                child: const Text('↓ 11% vs. mes previo', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: GlucyColors.deep)),
+                              child: const Text('Reintentar'),
+                            ),
+                          ],
+                        ),
+                        data: (_) => Column(
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Promedio', style: TextStyle(fontSize: 11.5, color: Color(0x99F4FAF9))),
+                                    Text.rich(TextSpan(
+                                      style: const TextStyle(fontFamily: 'Sora', fontSize: 26, fontWeight: FontWeight.w700, color: Colors.white),
+                                      children: [
+                                        TextSpan(text: promedio == null ? '— ' : '${_formatear(promedio)} '),
+                                        const TextSpan(text: 'mg/dL', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Color(0x8CF4FAF9))),
+                                      ],
+                                    )),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(color: GlucyColors.accent, borderRadius: BorderRadius.circular(999)),
+                                  child: Text(
+                                    enRango.length == 1 ? '1 medición' : '${enRango.length} mediciones',
+                                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: GlucyColors.deep),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            if (enRango.isEmpty)
+                              const SizedBox(
+                                height: 80,
+                                child: Center(
+                                  child: Text('Sin mediciones en este rango todavía.',
+                                      style: TextStyle(fontSize: 12.5, color: Color(0x99F4FAF9))),
+                                ),
+                              )
+                            else
+                              SizedBox(
+                                width: double.infinity,
+                                height: 80,
+                                child: CustomPaint(painter: _ProgressLinePainter([for (final m in enRango) m.valor])),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(width: double.infinity, height: 80, child: CustomPaint(painter: _ProgressLinePainter(_values))),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 13),
@@ -139,26 +194,39 @@ class _ProgresoScreenState extends State<ProgresoScreen> {
                             ),
                           ],
                           const SizedBox(height: 9),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(99),
-                            child: SizedBox(
-                              height: 14,
-                              child: Row(
-                                children: const [
-                                  Expanded(flex: 78, child: ColoredBox(color: GlucyColors.accent)),
-                                  Expanded(flex: 22, child: ColoredBox(color: Color(0xFFE8A33D))),
-                                ],
+                          if (tir == null)
+                            const Text('Registra mediciones para calcular tu tiempo en rango.',
+                                style: TextStyle(fontSize: 12, color: Color(0x8C10262A)))
+                          else ...[
+                            Text.rich(TextSpan(
+                              style: const TextStyle(fontFamily: 'Sora', fontSize: 22, fontWeight: FontWeight.w700, color: GlucyColors.deep),
+                              children: [
+                                TextSpan(text: '$tir %'),
+                                const TextSpan(text: '  en rango', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0x8C10262A))),
+                              ],
+                            )),
+                            const SizedBox(height: 9),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(99),
+                              child: SizedBox(
+                                height: 14,
+                                child: Row(
+                                  children: [
+                                    if (tir > 0) Expanded(flex: tir, child: const ColoredBox(color: GlucyColors.accent)),
+                                    if (tir < 100) Expanded(flex: 100 - tir, child: const ColoredBox(color: Color(0xFFE8A33D))),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 9),
-                          Row(
-                            children: const [
-                              _Legend(color: GlucyColors.accent, label: 'En rango 78%'),
-                              SizedBox(width: 16),
-                              _Legend(color: Color(0xFFE8A33D), label: 'Sobre meta 22%'),
-                            ],
-                          ),
+                            const SizedBox(height: 9),
+                            Row(
+                              children: [
+                                _Legend(color: GlucyColors.accent, label: 'En rango $tir%'),
+                                const SizedBox(width: 16),
+                                _Legend(color: const Color(0xFFE8A33D), label: 'Sobre meta ${100 - tir}%'),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -256,18 +324,29 @@ class _Kpi extends StatelessWidget {
 /// Línea de tendencia simple (sin banda ni puntos), usada en la tarjeta
 /// oscura de progreso.
 class _ProgressLinePainter extends CustomPainter {
-  final List<int> values;
+  final List<double> values;
   const _ProgressLinePainter(this.values);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final minV = values.reduce((a, b) => a < b ? a : b).toDouble();
-    final maxV = values.reduce((a, b) => a > b ? a : b).toDouble();
+    if (values.isEmpty) return;
+
+    final minV = values.reduce((a, b) => a < b ? a : b);
+    final maxV = values.reduce((a, b) => a > b ? a : b);
     final span = (maxV - minV).clamp(1, double.infinity);
-    final dx = size.width / (values.length - 1);
+    // Con una sola medicion no hay linea que trazar: un punto al centro.
+    final dx = values.length == 1 ? 0.0 : size.width / (values.length - 1);
+    final x0 = values.length == 1 ? size.width / 2 : 0.0;
     final points = <Offset>[
-      for (var i = 0; i < values.length; i++) Offset(i * dx, size.height - (values[i] - minV) / span * size.height * 0.85 - size.height * 0.05),
+      for (var i = 0; i < values.length; i++)
+        Offset(x0 + i * dx, size.height - (values[i] - minV) / span * size.height * 0.85 - size.height * 0.05),
     ];
+
+    if (points.length == 1) {
+      canvas.drawCircle(points.first, 4, Paint()..color = const Color(0xFF2EE6A8));
+      return;
+    }
+
     final path = Path()..moveTo(points.first.dx, points.first.dy);
     for (final p in points.skip(1)) {
       path.lineTo(p.dx, p.dy);
