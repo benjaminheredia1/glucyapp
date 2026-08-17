@@ -15,15 +15,36 @@ class SesionController extends AsyncNotifier<Sesion> {
     return usuario == null ? const Sesion.noAutenticado() : Sesion.autenticado(usuario);
   }
 
-  Future<void> iniciarSesion({String? conexion}) async {
+  /// Identidad temporal (POST /auth/anonimo) para correr el embudo sin
+  /// cuenta. Un fallo deja `AsyncError`: la pantalla lo pinta con
+  /// `MensajeError` y deja reintentar.
+  Future<void> entrarComoAnonimo() async {
     state = const AsyncLoading();
 
     try {
-      final usuario = await ref.read(authRepositoryProvider).iniciarSesion(conexion: conexion);
+      final usuario = await ref.read(authRepositoryProvider).entrarComoAnonimo();
+      state = AsyncData(Sesion.autenticado(usuario));
+    } catch (e, pila) {
+      state = AsyncError(e, pila);
+    }
+  }
+
+  /// `reclamar` (por defecto): si hay una identidad temporal, el backend la
+  /// convierte en la cuenta real. El portal medico llama con `false`.
+  Future<void> iniciarSesion({String? conexion, bool reclamar = true}) async {
+    // `AsyncLoading()` pierde el valor previo; se guarda para que cancelar
+    // Auth0 no tire una sesion temporal que sigue viva.
+    final anterior = state.value;
+    state = const AsyncLoading();
+
+    try {
+      final usuario = await ref
+          .read(authRepositoryProvider)
+          .iniciarSesion(conexion: conexion, reclamar: reclamar);
       state = AsyncData(Sesion.autenticado(usuario));
     } on Auth0Cancelado {
       // Echarse atras en Universal Login no es un fallo que reportar.
-      state = const AsyncData(Sesion.noAutenticado());
+      state = AsyncData(anterior ?? const Sesion.noAutenticado());
     } catch (e, pila) {
       state = AsyncError(e, pila);
     }

@@ -9,6 +9,7 @@ import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
 
 const _maria = Usuario(id: 7, name: 'Maria', email: 'maria@ejemplo.com', rol: Rol.paciente);
+const _anonimo = Usuario(id: 1, name: 'Paciente', rol: Rol.paciente, esTemporal: true);
 
 class AuthRepositoryFalso implements AuthRepository {
   AuthRepositoryFalso({this.almacenada, this.alIniciar});
@@ -17,17 +18,26 @@ class AuthRepositoryFalso implements AuthRepository {
   Usuario? alIniciar;
   Object? errorAlRestaurar;
   Object? errorAlIniciar;
+  Object? errorAnonimo;
+  bool? ultimoReclamar;
+  int altasAnonimas = 0;
   int cierres = 0;
 
   @override
   Future<Usuario> iniciarSesion({String? conexion, bool reclamar = true}) async {
+    ultimoReclamar = reclamar;
     if (errorAlIniciar != null) throw errorAlIniciar!;
 
     return alIniciar ?? _maria;
   }
 
   @override
-  Future<Usuario> entrarComoAnonimo() async => throw UnimplementedError();
+  Future<Usuario> entrarComoAnonimo() async {
+    altasAnonimas++;
+    if (errorAnonimo != null) throw errorAnonimo!;
+
+    return _anonimo;
+  }
 
   @override
   Future<Usuario?> restaurarSesion() async {
@@ -107,6 +117,50 @@ void main() {
     await c.read(sesionControllerProvider.notifier).iniciarSesion();
 
     expect(c.read(sesionControllerProvider).hasError, isTrue);
+  });
+
+  test('entrarComoAnonimo pasa a autenticado temporal', () async {
+    final c = contenedor(AuthRepositoryFalso());
+    await c.read(sesionControllerProvider.future);
+
+    await c.read(sesionControllerProvider.notifier).entrarComoAnonimo();
+
+    final sesion = c.read(sesionControllerProvider).value;
+    expect(sesion, isA<SesionAutenticado>());
+    expect((sesion as SesionAutenticado).usuario.esTemporal, isTrue);
+  });
+
+  test('un fallo al entrar como anonimo deja el estado en error', () async {
+    final c = contenedor(AuthRepositoryFalso()..errorAnonimo = const FalloLimite(Duration(seconds: 30)));
+    await c.read(sesionControllerProvider.future);
+
+    await c.read(sesionControllerProvider.notifier).entrarComoAnonimo();
+
+    expect(c.read(sesionControllerProvider).hasError, isTrue);
+  });
+
+  test('iniciarSesion reclama por defecto y respeta reclamar: false', () async {
+    final repo = AuthRepositoryFalso();
+    final c = contenedor(repo);
+    await c.read(sesionControllerProvider.future);
+
+    await c.read(sesionControllerProvider.notifier).iniciarSesion();
+    expect(repo.ultimoReclamar, isTrue);
+
+    await c.read(sesionControllerProvider.notifier).iniciarSesion(reclamar: false);
+    expect(repo.ultimoReclamar, isFalse);
+  });
+
+  test('cancelar Auth0 desde una sesion temporal la conserva, no vuelve a noAutenticado', () async {
+    final repo = AuthRepositoryFalso(almacenada: _anonimo)..errorAlIniciar = const Auth0Cancelado();
+    final c = contenedor(repo);
+    await c.read(sesionControllerProvider.future);
+
+    await c.read(sesionControllerProvider.notifier).iniciarSesion();
+
+    final sesion = c.read(sesionControllerProvider).value;
+    expect(sesion, isA<SesionAutenticado>());
+    expect((sesion as SesionAutenticado).usuario.esTemporal, isTrue);
   });
 
   test('cerrarSesion vuelve a noAutenticado', () async {
