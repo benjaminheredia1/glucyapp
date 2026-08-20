@@ -1,5 +1,10 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glucy_app/core/network/error_interceptor.dart';
 import 'package:glucy_app/features/estudios/estudio_api.dart';
+import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
   group('EstudioMedico.fromJson', () {
@@ -43,6 +48,63 @@ void main() {
 
       expect(estudio.tipoEstudioId, 1);
       expect(estudio.tipoEstudio, isNull);
+    });
+  });
+
+  group('subirArchivo y registrar', () {
+    late Dio dio;
+    late DioAdapter adaptador;
+    late EstudioApi api;
+
+    setUp(() {
+      dio = Dio(BaseOptions(baseUrl: 'http://localhost:8000/api'));
+      adaptador = DioAdapter(dio: dio);
+      dio.interceptors.add(ErrorInterceptor());
+      api = EstudioApi(dio);
+    });
+
+    test('subirArchivo sube el documento una sola vez y devuelve su id', () async {
+      final archivo = File('${Directory.systemTemp.path}/estudio-prueba.pdf')..writeAsBytesSync([1, 2, 3]);
+      // En Windows el stream del multipart puede retener el handle un rato:
+      // borrar es cortesia, no requisito del test.
+      addTearDown(() {
+        try {
+          archivo.deleteSync();
+        } on FileSystemException {
+          // se queda en el temp del sistema
+        }
+      });
+
+      adaptador.onPost(
+        '/archivos/subir',
+        (servidor) => servidor.reply(201, {'id': 9, 'nombre': 'estudio-prueba.pdf'}),
+        data: Matchers.any,
+      );
+
+      final id = await api.subirArchivo(rutaArchivo: archivo.path, nombreArchivo: 'estudio-prueba.pdf');
+
+      expect(id, 9);
+    });
+
+    test('registrar crea el estudio de un tipo apuntando a un archivo ya subido', () async {
+      final hoy = DateTime.now().toIso8601String().substring(0, 10);
+
+      adaptador.onPost(
+        '/estudios-medicos',
+        (servidor) => servidor.reply(201, {
+          'id': 20,
+          'estado': 'pendiente',
+          'fecha': '${hoy}T00:00:00.000000Z',
+          'tipoEstudioId': 5,
+          'archivoId': 9,
+        }),
+        data: {'tipoEstudioId': 5, 'archivoId': 9, 'fecha': hoy, 'origen': 'carga'},
+      );
+
+      final estudio = await api.registrar(tipoEstudioId: 5, archivoId: 9);
+
+      expect(estudio.id, 20);
+      expect(estudio.estado, 'pendiente');
     });
   });
 }

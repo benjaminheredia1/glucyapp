@@ -103,16 +103,11 @@ class EstudioApi {
     }
   }
 
-  /// Sube el documento y registra el estudio en un solo paso. Nace en estado
-  /// `pendiente`: la aprobacion la firma un doctor desde su portal.
-  Future<EstudioMedico> subir({
-    required int tipoEstudioId,
-    required String rutaArchivo,
-    required String nombreArchivo,
-    String? descripcion,
-  }) async {
+  /// Sube el documento (`POST /archivos/subir`) y devuelve su id, para poder
+  /// registrarlo como estudio de uno o varios tipos sin volver a subirlo.
+  Future<int> subirArchivo({required String rutaArchivo, required String nombreArchivo}) async {
     try {
-      final archivo = await _dio.post<Map<String, dynamic>>(
+      final respuesta = await _dio.post<Map<String, dynamic>>(
         '/archivos/subir',
         data: FormData.fromMap({
           'archivo': await MultipartFile.fromFile(rutaArchivo, filename: nombreArchivo),
@@ -120,9 +115,23 @@ class EstudioApi {
         }),
       );
 
+      return respuesta.data!['id'] as int;
+    } on DioException catch (e) {
+      throw e.error is FalloApi ? e.error as FalloApi : const FalloDesconocido();
+    }
+  }
+
+  /// Registra un estudio de `tipoEstudioId` apuntando a un archivo ya subido.
+  /// Nace `pendiente`: la aprobacion la firma un doctor desde su portal.
+  Future<EstudioMedico> registrar({
+    required int tipoEstudioId,
+    required int archivoId,
+    String? descripcion,
+  }) async {
+    try {
       final respuesta = await _dio.post<Map<String, dynamic>>('/estudios-medicos', data: {
         'tipoEstudioId': tipoEstudioId,
-        'archivoId': archivo.data!['id'],
+        'archivoId': archivoId,
         'fecha': DateTime.now().toIso8601String().substring(0, 10),
         'origen': 'carga',
         'descripcion': ?descripcion,
@@ -132,6 +141,18 @@ class EstudioApi {
     } on DioException catch (e) {
       throw e.error is FalloApi ? e.error as FalloApi : const FalloDesconocido();
     }
+  }
+
+  /// Sube el documento y registra el estudio en un solo paso.
+  Future<EstudioMedico> subir({
+    required int tipoEstudioId,
+    required String rutaArchivo,
+    required String nombreArchivo,
+    String? descripcion,
+  }) async {
+    final archivoId = await subirArchivo(rutaArchivo: rutaArchivo, nombreArchivo: nombreArchivo);
+
+    return registrar(tipoEstudioId: tipoEstudioId, archivoId: archivoId, descripcion: descripcion);
   }
 
   // ------------------------------------------------- portal del doctor

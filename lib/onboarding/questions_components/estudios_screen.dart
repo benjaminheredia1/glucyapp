@@ -42,12 +42,21 @@ class _Fila {
       };
 }
 
+/// Archivo elegido por el paciente. Record propio y no `PlatformFile` porque
+/// esa clase es `abstract base` (no se puede doblar en tests).
+typedef ArchivoElegido = ({String nombre, String ruta});
+
+typedef SelectorDeArchivo = Future<ArchivoElegido?> Function();
+
 /// Estudios del paciente contra la API: lista el paquete requerido
 /// (`/tipo-estudios`), muestra el veredicto de cada carga y sube el
 /// documento (`/archivos/subir` + `/estudios-medicos`). La aprobación la
 /// firma un doctor desde su portal; aquí solo se ve el estado.
 class EstudiosScreen extends ConsumerStatefulWidget {
-  const EstudiosScreen({super.key});
+  const EstudiosScreen({super.key, this.elegirArchivo});
+
+  /// Inyectable para test; por defecto abre el selector de archivos.
+  final SelectorDeArchivo? elegirArchivo;
 
   @override
   ConsumerState<EstudiosScreen> createState() => _EstudiosScreenState();
@@ -58,6 +67,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
   bool _cargando = true;
   String? _error;
   int? _subiendoTipoId;
+  bool _subiendoTodo = false;
 
   @override
   void initState() {
@@ -109,24 +119,34 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
   int get _total => _filas.length;
   bool get _todosAprobados => _total > 0 && _completos == _total;
 
-  Future<void> _subir(_Fila fila) async {
-    if (fila.estado == _Estado.aprobado || fila.estado == _Estado.enRevision) return;
+  Future<ArchivoElegido?> _elegirArchivo(String titulo) async {
+    if (widget.elegirArchivo != null) return widget.elegirArchivo!();
 
     final archivo = await FilePicker.pickFile(
-      dialogTitle: 'Elegir resultado (foto o PDF)',
+      dialogTitle: titulo,
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
     );
 
-    if (archivo == null || archivo.path == null || !mounted) return;
+    if (archivo == null || archivo.path == null) return null;
+
+    return (nombre: archivo.name, ruta: archivo.path!);
+  }
+
+  Future<void> _subir(_Fila fila) async {
+    if (fila.estado == _Estado.aprobado || fila.estado == _Estado.enRevision) return;
+
+    final archivo = await _elegirArchivo('Elegir resultado (foto o PDF)');
+
+    if (archivo == null || !mounted) return;
 
     setState(() => _subiendoTipoId = fila.tipo.id);
 
     try {
       await ref.read(estudioApiProvider).subir(
             tipoEstudioId: fila.tipo.id,
-            rutaArchivo: archivo.path!,
-            nombreArchivo: archivo.name,
+            rutaArchivo: archivo.ruta,
+            nombreArchivo: archivo.nombre,
           );
 
       if (!mounted) return;
@@ -143,6 +163,53 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
           .showSnackBar(SnackBar(content: Text('No se pudo subir: ${fallo.mensaje}')));
     } finally {
       if (mounted) setState(() => _subiendoTipoId = null);
+    }
+  }
+
+  /// Filas que la carga conjunta tiene que cubrir: sin subir o rechazadas.
+  List<_Fila> get _faltantes =>
+      [for (final f in _filas) if (f.estado == _Estado.sinSubir || f.estado == _Estado.rechazado) f];
+
+  /// Un solo archivo (la hoja completa del laboratorio) que se registra como
+  /// estudio de cada tipo que falte: todos quedan "Subido · en revisión" y el
+  /// doctor valida tipo por tipo sobre el mismo documento.
+  Future<void> _subirTodo() async {
+    final faltantes = _faltantes;
+
+    if (faltantes.isEmpty || _subiendoTodo) return;
+
+    final archivo = await _elegirArchivo('Elegir el archivo con todos los resultados');
+
+    if (archivo == null || !mounted) return;
+
+    setState(() => _subiendoTodo = true);
+
+    try {
+      final api = ref.read(estudioApiProvider);
+      final archivoId = await api.subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
+
+      for (final fila in faltantes) {
+        await api.registrar(
+          tipoEstudioId: fila.tipo.id,
+          archivoId: archivoId,
+          descripcion: 'Carga conjunta: ${archivo.nombre}',
+        );
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${archivo.nombre} subido: ${faltantes.length} estudios quedan en revisión médica.'),
+      ));
+
+      await _cargar();
+    } on FalloApi catch (fallo) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('No se pudo subir: ${fallo.mensaje}')));
+    } finally {
+      if (mounted) setState(() => _subiendoTodo = false);
     }
   }
 
@@ -202,6 +269,10 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
                                 const SizedBox(height: 10),
                               ],
                               _labRow(),
+                              if (_faltantes.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                _subirTodoCard(),
+                              ],
                             ],
                           ),
                         ),
@@ -357,6 +428,56 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _subirTodoCard() {
+    final faltan = _faltantes.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: GlucyColors.dashedBorder, width: 1.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '¿Tienes todo en un solo archivo?',
+            style: TextStyle(fontFamily: 'Sora', fontSize: 13, fontWeight: FontWeight.w700, color: GlucyColors.deep),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Sube la hoja completa del laboratorio una sola vez y quedará registrada para '
+            '${faltan == 1 ? 'el estudio que falta' : 'los $faltan estudios que faltan'}.',
+            style: const TextStyle(fontSize: 11.5, height: 1.5, color: GlucyColors.muted),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const Key('boton-subir-todo'),
+              onPressed: _subiendoTodo ? null : _subirTodo,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: GlucyColors.primary,
+                side: const BorderSide(color: Color(0x4D0A7C86)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: _subiendoTodo
+                  ? const SizedBox(height: 15, width: 15, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.upload_file_outlined, size: 17),
+              label: const Text(
+                'Subir un archivo con todo',
+                style: TextStyle(fontFamily: 'Sora', fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
