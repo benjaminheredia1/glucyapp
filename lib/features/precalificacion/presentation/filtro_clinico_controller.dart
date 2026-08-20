@@ -37,20 +37,16 @@ abstract class EstadoFiltro with _$EstadoFiltro {
 class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
   @override
   Future<EstadoFiltro> build() async {
+    // Las respuestas ya no se cachean entre sesiones: el filtro siempre
+    // empieza en blanco. Se borra lo que una version anterior de la app haya
+    // dejado guardado en el dispositivo. `.ignore()`, no `unawaited(...)`:
+    // `unawaited` solo descarta el Future, no le pone un manejador -- un
+    // fallo aqui escaparia como error asincrono sin dueño a nivel de zona.
+    ref.read(embudoStoreProvider).limpiar().ignore();
+
     final preguntas = await ref.read(precalificacionRepositoryProvider).preguntas();
-    final guardadas = await ref.read(embudoStoreProvider).leerProgreso();
 
-    // Solo se recuperan respuestas de preguntas que siguen activas: el
-    // cuestionario esta versionado y puede haber cambiado.
-    final vigentes = preguntas.map((p) => p.id).toSet();
-
-    return EstadoFiltro(
-      preguntas: preguntas,
-      respuestas: {
-        for (final e in guardadas.entries)
-          if (vigentes.contains(e.key)) e.key: e.value,
-      },
-    );
+    return EstadoFiltro(preguntas: preguntas, respuestas: const {});
   }
 
   void responder(int preguntaId, bool si) {
@@ -58,15 +54,7 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
 
     if (actual == null) return;
 
-    final respuestas = {...actual.respuestas, preguntaId: si};
-    state = AsyncData(actual.copyWith(respuestas: respuestas));
-
-    // Sin await: guardar el progreso no debe frenar la interaccion.
-    // `.ignore()`, no `unawaited(...)`: `unawaited` solo descarta el Future,
-    // no le pone un manejador -- un fallo aqui seguiria escapando como error
-    // asincrono sin dueño a nivel de zona. `.ignore()` es el idiom real de
-    // Dart para "que corra y que de verdad no importe el resultado".
-    ref.read(embudoStoreProvider).guardarProgreso(respuestas).ignore();
+    state = AsyncData(actual.copyWith(respuestas: {...actual.respuestas, preguntaId: si}));
   }
 
   /// Devuelve `null` si falta responder algo o si el envio fallo. El veredicto lo calcula el servidor: aqui no hay ninguna regla

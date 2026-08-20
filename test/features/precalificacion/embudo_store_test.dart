@@ -4,8 +4,8 @@ import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 
 /// Doble minimo del backend de flutter_secure_storage: implementa el mismo
 /// contrato que un Keychain/EncryptedSharedPreferences real, en memoria, para
-/// poder inyectar datos corruptos sin depender de un canal de plataforma
-/// (que no existe en un test unitario puro).
+/// no depender de un canal de plataforma (que no existe en un test unitario
+/// puro).
 class _PlataformaEnMemoria extends FlutterSecureStoragePlatform {
   final Map<String, String> valores = {};
 
@@ -48,43 +48,19 @@ void main() {
     store = EmbudoStoreSeguro();
   });
 
-  test('leerProgreso() con JSON bien formado funciona', () async {
+  // El cache de respuestas se quito; `limpiar()` sigue existiendo para borrar
+  // lo que versiones anteriores de la app dejaron bajo esta clave.
+  test('limpiar() borra el progreso que dejo una version anterior', () async {
     plataforma.valores['glucy.embudo.respuestas'] = '{"1": true, "2": false}';
-
-    expect(await store.leerProgreso(), {1: true, 2: false});
-  });
-
-  test('leerProgreso() sin nada guardado devuelve vacio', () async {
-    expect(await store.leerProgreso(), isEmpty);
-  });
-
-  // Review de Task 17: el catch original solo cubria FormatException. Un
-  // JSON valido pero con otra forma no lanza eso -- lanza TypeError -- y se
-  // escapaba sin capturar, dejando el filtro clinico entero atascado en
-  // error (retry: null no reintenta solo).
-  test('leerProgreso() con JSON valido pero que no es un mapa empieza limpio, no revienta', () async {
-    plataforma.valores['glucy.embudo.respuestas'] = 'null';
-
-    expect(await store.leerProgreso(), isEmpty);
-  });
-
-  test('leerProgreso() con una respuesta que no es booleana tambien empieza limpio', () async {
-    plataforma.valores['glucy.embudo.respuestas'] = '{"1": "si"}';
-
-    expect(await store.leerProgreso(), isEmpty);
-  });
-
-  test('leerProgreso() con formato viejo/corrupto (FormatException) sigue empezando limpio', () async {
-    plataforma.valores['glucy.embudo.respuestas'] = 'no es json';
-
-    expect(await store.leerProgreso(), isEmpty);
-  });
-
-  test('limpiar() borra el progreso', () async {
-    await store.guardarProgreso({1: true});
 
     await store.limpiar();
 
-    expect(await store.leerProgreso(), isEmpty);
+    expect(plataforma.valores, isEmpty);
+  });
+
+  test('limpiar() sin nada guardado no revienta', () async {
+    await store.limpiar();
+
+    expect(plataforma.valores, isEmpty);
   });
 }

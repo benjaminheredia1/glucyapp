@@ -15,16 +15,10 @@ const _preguntas = [
 /// Doble en memoria: el real usa flutter_secure_storage, que no tiene canal
 /// de plataforma en un test unitario puro.
 class EmbudoStoreFalso implements EmbudoStore {
-  Map<int, bool> progreso = {};
+  int limpiezas = 0;
 
   @override
-  Future<void> guardarProgreso(Map<int, bool> respuestas) async => progreso = respuestas;
-
-  @override
-  Future<Map<int, bool>> leerProgreso() async => progreso;
-
-  @override
-  Future<void> limpiar() async => progreso = {};
+  Future<void> limpiar() async => limpiezas++;
 }
 
 class RepoFalso implements PrecalificacionRepository {
@@ -99,33 +93,16 @@ void main() {
     expect(c.read(filtroClinicoControllerProvider).value!.completo, isTrue);
   });
 
-  test('build() restaura el progreso guardado por una sesion anterior', () async {
-    final store = EmbudoStoreFalso()..progreso = {1: true};
-    final c = contenedor(RepoFalso(), store: store);
-
-    final estado = await c.read(filtroClinicoControllerProvider.future);
-
-    expect(estado.respuestas, {1: true});
-  });
-
-  test('build() descarta progreso de preguntas que ya no existen en el cuestionario vigente', () async {
-    final store = EmbudoStoreFalso()..progreso = {1: true, 99: false};
-    final c = contenedor(RepoFalso(), store: store);
-
-    final estado = await c.read(filtroClinicoControllerProvider.future);
-
-    expect(estado.respuestas, {1: true});
-  });
-
-  test('responder() guarda el progreso en el EmbudoStore', () async {
+  // Las respuestas ya no se cachean entre sesiones: el filtro empieza en
+  // blanco y de paso borra lo que una version anterior dejo guardado.
+  test('build() empieza sin respuestas y borra el cache legado del dispositivo', () async {
     final store = EmbudoStoreFalso();
     final c = contenedor(RepoFalso(), store: store);
-    await c.read(filtroClinicoControllerProvider.future);
-    final notifier = c.read(filtroClinicoControllerProvider.notifier);
 
-    notifier.responder(1, true);
+    final estado = await c.read(filtroClinicoControllerProvider.future);
 
-    expect(store.progreso, {1: true});
+    expect(estado.respuestas, isEmpty);
+    expect(store.limpiezas, 1);
   });
 
   test('responder dos veces la misma pregunta sustituye la respuesta', () async {

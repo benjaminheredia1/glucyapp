@@ -117,20 +117,12 @@ class PrecalificacionRepositoryFalso implements PrecalificacionRepository {
 }
 
 /// El controlador del filtro tambien lee `embudoStoreProvider` al montarse
-/// (para restaurar progreso) y al responder (para guardarlo): sin este doble,
-/// el real pega a flutter_secure_storage y `pumpAndSettle` cuelga esperando
-/// una respuesta de un canal de plataforma que no existe en el test.
+/// (para borrar el cache legado): sin este doble, el real pega a
+/// flutter_secure_storage y `pumpAndSettle` cuelga esperando una respuesta de
+/// un canal de plataforma que no existe en el test.
 class EmbudoStoreFalso implements EmbudoStore {
-  Map<int, bool> progreso = {};
-
   @override
-  Future<void> guardarProgreso(Map<int, bool> respuestas) async => progreso = respuestas;
-
-  @override
-  Future<Map<int, bool>> leerProgreso() async => progreso;
-
-  @override
-  Future<void> limpiar() async => progreso = {};
+  Future<void> limpiar() async {}
 }
 
 Future<GoRouter> montar(
