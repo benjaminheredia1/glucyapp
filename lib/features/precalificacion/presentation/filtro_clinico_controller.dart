@@ -39,10 +39,12 @@ class FiltroClinicoController extends AsyncNotifier<EstadoFiltro> {
   Future<EstadoFiltro> build() async {
     // Las respuestas ya no se cachean entre sesiones: el filtro siempre
     // empieza en blanco. Se borra lo que una version anterior de la app haya
-    // dejado guardado en el dispositivo. `.ignore()`, no `unawaited(...)`:
-    // `unawaited` solo descarta el Future, no le pone un manejador -- un
-    // fallo aqui escaparia como error asincrono sin dueño a nivel de zona.
-    ref.read(embudoStoreProvider).limpiar().ignore();
+    // dejado guardado en el dispositivo (solo respuestas: la etapa del
+    // embudo es de la sesion y se borra al cerrarla). `.ignore()`, no
+    // `unawaited(...)`: `unawaited` solo descarta el Future, no le pone un
+    // manejador -- un fallo aqui escaparia como error asincrono sin dueño a
+    // nivel de zona.
+    ref.read(embudoStoreProvider).limpiarRespuestas().ignore();
 
     final preguntas = await ref.read(precalificacionRepositoryProvider).preguntas();
 

@@ -2,7 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:glucy_app/features/estudios/estudio_api.dart';
+import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import 'package:glucy_app/onboarding/questions_components/estudios_screen.dart';
+
+/// La pantalla guarda la etapa del embudo al montarse; el real usa
+/// flutter_secure_storage, sin canal de plataforma en tests.
+class EmbudoStoreFalso implements EmbudoStore {
+  String? etapa;
+
+  @override
+  Future<void> guardarEtapa(String etapa) async => this.etapa = etapa;
+
+  @override
+  Future<String?> leerEtapa() async => etapa;
+
+  @override
+  Future<void> limpiarRespuestas() async {}
+
+  @override
+  Future<void> limpiar() async => etapa = null;
+}
 
 class EstudioApiFalso implements EstudioApi {
   EstudioApiFalso({required this.tipos_, this.propios_ = const []});
@@ -84,14 +103,19 @@ const _tipos = [
   TipoEstudio(id: 3, nombre: 'Perfil lipídico'),
 ];
 
-Future<void> montar(WidgetTester tester, EstudioApiFalso api) async {
+Future<EmbudoStoreFalso> montar(WidgetTester tester, EstudioApiFalso api) async {
   tester.view.physicalSize = const Size(800, 1600);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
+  final embudo = EmbudoStoreFalso();
+
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [estudioApiProvider.overrideWithValue(api)],
+      overrides: [
+        estudioApiProvider.overrideWithValue(api),
+        embudoStoreProvider.overrideWithValue(embudo),
+      ],
       child: MaterialApp(
         home: EstudiosScreen(
           elegirArchivo: () async => (nombre: 'laboratorio-central.pdf', ruta: 'C:/tmp/laboratorio-central.pdf'),
@@ -100,6 +124,8 @@ Future<void> montar(WidgetTester tester, EstudioApiFalso api) async {
     ),
   );
   await tester.pumpAndSettle();
+
+  return embudo;
 }
 
 void main() {
@@ -192,6 +218,12 @@ void main() {
 
     expect(find.text('Aprobado'), findsOneWidget);
     expect(find.textContaining('vuelve a subirlo'), findsNothing);
+  });
+
+  testWidgets('montar la pantalla guarda la etapa "estudios" del embudo', (tester) async {
+    final embudo = await montar(tester, EstudioApiFalso(tipos_: _tipos));
+
+    expect(embudo.etapa, EmbudoStore.etapaEstudios);
   });
 
   testWidgets('con todo aprobado no se ofrece la carga conjunta', (tester) async {

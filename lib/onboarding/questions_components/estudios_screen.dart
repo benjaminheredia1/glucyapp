@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:glucy_app/core/error/fallo_api.dart';
 import 'package:glucy_app/features/estudios/estudio_api.dart';
+import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import 'package:glucy_app/onboarding/questions_components/lab_domicilio_screen.dart';
 import 'package:glucy_app/onboarding/questions_components/procesando_screen.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Colores del diseño Glucy AI
 class GlucyColors {
@@ -49,6 +51,9 @@ typedef ArchivoElegido = ({String nombre, String ruta});
 
 typedef SelectorDeArchivo = Future<ArchivoElegido?> Function();
 
+/// De donde sale el archivo: foto tomada al momento o algo ya guardado.
+enum _OrigenArchivo { camara, documento }
+
 /// Estudios del paciente contra la API: lista el paquete requerido
 /// (`/tipo-estudios`) y sube el documento (`/archivos/subir`). La IA del
 /// backend detecta qué estudios contiene el archivo y los aprueba en la
@@ -73,6 +78,10 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
   @override
   void initState() {
     super.initState();
+    // Marca el progreso del embudo: al reabrir la app, el router salta
+    // directo aqui en vez de repetir perfil y filtro (los estudios en si
+    // viven en el backend y se recargan solos).
+    ref.read(embudoStoreProvider).guardarEtapa(EmbudoStore.etapaEstudios).ignore();
     _cargar();
   }
 
@@ -119,18 +128,72 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
   int get _total => _filas.length;
   bool get _todosAprobados => _total > 0 && _completos == _total;
 
+  /// Foto con la camara o documento del telefono. El backend acepta pdf,
+  /// jpeg, png, heic, heif y webp (max 10 MB); la camara entrega jpeg.
   Future<ArchivoElegido?> _elegirArchivo(String titulo) async {
     if (widget.elegirArchivo != null) return widget.elegirArchivo!();
 
-    final archivo = await FilePicker.pickFile(
-      dialogTitle: titulo,
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+    final origen = await showModalBottomSheet<_OrigenArchivo>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (contexto) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+              child: Text(
+                titulo,
+                style: const TextStyle(
+                    fontFamily: 'Sora', fontSize: 14, fontWeight: FontWeight.w700, color: GlucyColors.deep),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined, color: GlucyColors.primary),
+              title: const Text('Tomar foto', style: TextStyle(fontSize: 14)),
+              onTap: () => Navigator.of(contexto).pop(_OrigenArchivo.camara),
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined, color: GlucyColors.primary),
+              title: const Text('Elegir documento o imagen', style: TextStyle(fontSize: 14)),
+              onTap: () => Navigator.of(contexto).pop(_OrigenArchivo.documento),
+            ),
+            const SizedBox(height: 6),
+          ],
+        ),
+      ),
     );
 
-    if (archivo == null || archivo.path == null) return null;
+    if (origen == null || !mounted) return null;
 
-    return (nombre: archivo.name, ruta: archivo.path!);
+    switch (origen) {
+      case _OrigenArchivo.camara:
+        // maxWidth acota el peso muy por debajo del limite de 10 MB del
+        // backend sin perder legibilidad para la IA.
+        final foto = await ImagePicker().pickImage(
+          source: ImageSource.camera,
+          imageQuality: 90,
+          maxWidth: 2500,
+        );
+
+        if (foto == null) return null;
+
+        return (nombre: foto.name, ruta: foto.path);
+
+      case _OrigenArchivo.documento:
+        final archivo = await FilePicker.pickFile(
+          dialogTitle: titulo,
+          type: FileType.custom,
+          allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'heic', 'heif', 'webp'],
+        );
+
+        if (archivo == null || archivo.path == null) return null;
+
+        return (nombre: archivo.name, ruta: archivo.path!);
+    }
   }
 
   Future<void> _subir(_Fila fila) async {

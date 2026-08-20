@@ -10,6 +10,7 @@ import 'package:glucy_app/features/auth/data/auth_repository.dart';
 import 'package:glucy_app/features/auth/domain/rol.dart';
 import 'package:glucy_app/features/auth/domain/usuario.dart';
 import 'package:glucy_app/features/auth/presentation/sesion_controller.dart';
+import 'package:glucy_app/features/estudios/estudio_api.dart';
 import 'package:glucy_app/features/precalificacion/data/embudo_store.dart';
 import 'package:glucy_app/features/precalificacion/data/precalificacion_repository.dart';
 import 'package:glucy_app/features/precalificacion/domain/pregunta_filtro.dart';
@@ -116,13 +117,38 @@ class PrecalificacionRepositoryFalso implements PrecalificacionRepository {
       Veredicto(id: 1, resultado: resultado, motivo: resultado == Resultado.apto ? null : 'motivo de prueba');
 }
 
-/// El controlador del filtro tambien lee `embudoStoreProvider` al montarse
-/// (para borrar el cache legado): sin este doble, el real pega a
-/// flutter_secure_storage y `pumpAndSettle` cuelga esperando una respuesta de
-/// un canal de plataforma que no existe en el test.
+/// El controlador del filtro y el router leen `embudoStoreProvider`: sin este
+/// doble, el real pega a flutter_secure_storage y `pumpAndSettle` cuelga
+/// esperando una respuesta de un canal de plataforma que no existe en el test.
 class EmbudoStoreFalso implements EmbudoStore {
+  EmbudoStoreFalso({this.etapa});
+
+  String? etapa;
+
   @override
-  Future<void> limpiar() async {}
+  Future<void> guardarEtapa(String etapa) async => this.etapa = etapa;
+
+  @override
+  Future<String?> leerEtapa() async => etapa;
+
+  @override
+  Future<void> limpiarRespuestas() async {}
+
+  @override
+  Future<void> limpiar() async => etapa = null;
+}
+
+/// Doble minimo de EstudioApi: solo lo que EstudiosScreen pide al montarse.
+class EstudioApiFalso implements EstudioApi {
+  @override
+  Future<List<TipoEstudio>> tipos() async => const [];
+
+  @override
+  Future<List<EstudioMedico>> propios() async => const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }
 
 Future<GoRouter> montar(
@@ -130,6 +156,7 @@ Future<GoRouter> montar(
   Usuario? almacenada, {
   PrecalificacionRepository? precalificacion,
   AuthRepositoryFalso? auth,
+  String? etapa,
 }) async {
   final contenedor = ProviderContainer(
     overrides: [
@@ -137,7 +164,8 @@ Future<GoRouter> montar(
       precalificacionRepositoryProvider.overrideWithValue(
         precalificacion ?? PrecalificacionRepositoryFalso(),
       ),
-      embudoStoreProvider.overrideWithValue(EmbudoStoreFalso()),
+      embudoStoreProvider.overrideWithValue(EmbudoStoreFalso(etapa: etapa)),
+      estudioApiProvider.overrideWithValue(EstudioApiFalso()),
     ],
   );
   addTearDown(contenedor.dispose);
@@ -177,6 +205,18 @@ void main() {
     final router = await montar(tester, null);
 
     expect(rutaActual(router), Rutas.onboarding);
+  });
+
+  testWidgets('una identidad temporal con etapa "estudios" reabre directo en los estudios', (tester) async {
+    final router = await montar(tester, _anonima, etapa: EmbudoStore.etapaEstudios);
+
+    expect(rutaActual(router), Rutas.estudios);
+  });
+
+  testWidgets('la etapa "estudios" no arrastra a una cuenta real: va a su inicio', (tester) async {
+    final router = await montar(tester, usuarioCon(Rol.paciente), etapa: EmbudoStore.etapaEstudios);
+
+    expect(rutaActual(router), Rutas.inicioPaciente);
   });
 
   testWidgets('un paciente autenticado aterriza en su inicio', (tester) async {

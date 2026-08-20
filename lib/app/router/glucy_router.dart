@@ -9,11 +9,13 @@ import '../../features/auth/domain/rol.dart';
 import '../../features/auth/domain/sesion.dart';
 import '../../features/auth/domain/usuario.dart';
 import '../../features/auth/presentation/sesion_controller.dart';
+import '../../features/precalificacion/data/embudo_store.dart';
 import '../../features/precalificacion/domain/veredicto.dart';
 import '../../home/home_screen.dart';
 import '../../onboarding/onboarding_screen.dart';
 import '../../onboarding/questions_components/clinical_filter_widget.dart';
 import '../../onboarding/questions_components/crear_cuenta_screen.dart';
+import '../../onboarding/questions_components/estudios_screen.dart';
 import '../../onboarding/questions_components/filtro1_screen.dart';
 import '../../onboarding/questions_components/no_apto_screen.dart';
 import '../../onboarding/splash_screen.dart';
@@ -21,10 +23,21 @@ import '../../profile/profile.dart';
 import '../../warning/warning.dart';
 import 'rutas.dart';
 
-/// Reevalua las redirecciones cada vez que cambia la sesion.
+/// Etapa del embudo guardada en el dispositivo. Se relee en cada cambio de
+/// sesion (el `watch` de abajo): cerrar sesion la borra del storage y aqui no
+/// puede quedar un valor viejo que mande a un anonimo nuevo a los estudios.
+final etapaEmbudoProvider = FutureProvider<String?>((ref) {
+  ref.watch(sesionControllerProvider);
+
+  return ref.watch(embudoStoreProvider).leerEtapa();
+});
+
+/// Reevalua las redirecciones cada vez que cambia la sesion o se conoce la
+/// etapa guardada del embudo.
 class _NotificadorSesion extends ChangeNotifier {
   _NotificadorSesion(Ref ref) {
     ref.listen(sesionControllerProvider, (_, __) => notifyListeners());
+    ref.listen(etapaEmbudoProvider, (_, __) => notifyListeners());
   }
 }
 
@@ -42,6 +55,7 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: Rutas.splash, builder: (_, __) => const SplashScreen()),
       GoRoute(path: Rutas.onboarding, builder: (_, __) => const OnboardingScreen()),
       GoRoute(path: Rutas.perfil, builder: (_, __) => const Profile()),
+      GoRoute(path: Rutas.estudios, builder: (_, __) => const EstudiosScreen()),
       GoRoute(path: Rutas.crearCuenta, builder: (_, __) => const CrearCuentaScreen()),
       GoRoute(path: Rutas.login, builder: (_, __) => const CrearCuentaScreen()),
       GoRoute(path: Rutas.loginMedico, builder: (_, __) => const DoctorLoginScreen()),
@@ -96,21 +110,33 @@ final glucyRouterProvider = Provider<GoRouter>((ref) {
       // base `AsyncValue`); `valueOrNull` no existe en esta version.
       final actual = sesion.value ?? const Sesion.noAutenticado();
 
+      // null mientras carga o si no hay nada guardado: en ambos casos el
+      // embudo empieza del principio.
+      final etapa = ref.read(etapaEmbudoProvider).value;
+
       return switch (actual) {
         SesionNoAutenticado() => Rutas.publicas.contains(destino)
             ? (destino == Rutas.splash ? Rutas.onboarding : null)
             : Rutas.login,
-        SesionAutenticado(:final usuario) => _destinoAutenticado(usuario, destino),
+        SesionAutenticado(:final usuario) => _destinoAutenticado(usuario, destino, etapa),
       };
     },
   );
 });
 
-String? _destinoAutenticado(Usuario usuario, String destino) {
+String? _destinoAutenticado(Usuario usuario, String destino, String? etapa) {
   // Identidad temporal (POST /auth/anonimo): vive en el embudo, que son las
   // rutas publicas. Inicio y portal medico son de cuenta real; si cae ahi,
   // vuelve al principio del embudo.
   if (usuario.esTemporal) {
+    // Progreso cacheado: quien ya llego a la subida de estudios no repite
+    // perfil ni filtro al reabrir la app; el arranque salta directo ahi.
+    final arranque = destino == Rutas.splash || destino == Rutas.onboarding;
+
+    if (arranque && etapa == EmbudoStore.etapaEstudios) {
+      return Rutas.estudios;
+    }
+
     if (Rutas.publicas.contains(destino)) {
       return destino == Rutas.splash ? Rutas.onboarding : null;
     }

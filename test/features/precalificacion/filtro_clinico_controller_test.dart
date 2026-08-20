@@ -15,10 +15,23 @@ const _preguntas = [
 /// Doble en memoria: el real usa flutter_secure_storage, que no tiene canal
 /// de plataforma en un test unitario puro.
 class EmbudoStoreFalso implements EmbudoStore {
-  int limpiezas = 0;
+  int respuestasLimpiadas = 0;
+  String? etapa;
 
   @override
-  Future<void> limpiar() async => limpiezas++;
+  Future<void> guardarEtapa(String etapa) async => this.etapa = etapa;
+
+  @override
+  Future<String?> leerEtapa() async => etapa;
+
+  @override
+  Future<void> limpiarRespuestas() async => respuestasLimpiadas++;
+
+  @override
+  Future<void> limpiar() async {
+    respuestasLimpiadas++;
+    etapa = null;
+  }
 }
 
 class RepoFalso implements PrecalificacionRepository {
@@ -94,15 +107,17 @@ void main() {
   });
 
   // Las respuestas ya no se cachean entre sesiones: el filtro empieza en
-  // blanco y de paso borra lo que una version anterior dejo guardado.
-  test('build() empieza sin respuestas y borra el cache legado del dispositivo', () async {
-    final store = EmbudoStoreFalso();
+  // blanco y de paso borra lo que una version anterior dejo guardado. La
+  // etapa del embudo no se toca: es de la sesion, no del filtro.
+  test('build() empieza sin respuestas y borra solo el cache legado de respuestas', () async {
+    final store = EmbudoStoreFalso()..etapa = EmbudoStore.etapaEstudios;
     final c = contenedor(RepoFalso(), store: store);
 
     final estado = await c.read(filtroClinicoControllerProvider.future);
 
     expect(estado.respuestas, isEmpty);
-    expect(store.limpiezas, 1);
+    expect(store.respuestasLimpiadas, 1);
+    expect(store.etapa, EmbudoStore.etapaEstudios);
   });
 
   test('responder dos veces la misma pregunta sustituye la respuesta', () async {

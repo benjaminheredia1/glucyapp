@@ -93,6 +93,15 @@ class EmbudoStoreFalso implements EmbudoStore {
   int limpiezas = 0;
 
   @override
+  Future<void> guardarEtapa(String etapa) async {}
+
+  @override
+  Future<String?> leerEtapa() async => null;
+
+  @override
+  Future<void> limpiarRespuestas() async {}
+
+  @override
   Future<void> limpiar() async => limpiezas++;
 }
 

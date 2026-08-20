@@ -4,6 +4,7 @@ abstract final class Rutas {
   static const onboarding = '/onboarding';
   static const perfil = '/tu-perfil';
   static const filtroClinico = '/filtro-clinico';
+  static const estudios = '/estudios';
   static const noApto = '/no-apto';
   static const urgencia = '/urgencia';
   static const crearCuenta = '/crear-cuenta';
@@ -19,6 +20,7 @@ abstract final class Rutas {
     onboarding,
     perfil,
     filtroClinico,
+    estudios,
     noApto,
     urgencia,
     crearCuenta,

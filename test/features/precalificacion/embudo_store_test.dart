@@ -48,10 +48,31 @@ void main() {
     store = EmbudoStoreSeguro();
   });
 
-  // El cache de respuestas se quito; `limpiar()` sigue existiendo para borrar
-  // lo que versiones anteriores de la app dejaron bajo esta clave.
-  test('limpiar() borra el progreso que dejo una version anterior', () async {
+  test('la etapa del embudo se guarda y se relee', () async {
+    await store.guardarEtapa(EmbudoStore.etapaEstudios);
+
+    expect(await store.leerEtapa(), 'estudios');
+  });
+
+  test('sin etapa guardada, leerEtapa() devuelve null', () async {
+    expect(await store.leerEtapa(), isNull);
+  });
+
+  // El cache de respuestas se quito; `limpiarRespuestas()` borra lo que
+  // versiones anteriores dejaron bajo esa clave sin tocar la etapa.
+  test('limpiarRespuestas() borra el progreso viejo pero conserva la etapa', () async {
     plataforma.valores['glucy.embudo.respuestas'] = '{"1": true, "2": false}';
+    await store.guardarEtapa(EmbudoStore.etapaEstudios);
+
+    await store.limpiarRespuestas();
+
+    expect(plataforma.valores.containsKey('glucy.embudo.respuestas'), isFalse);
+    expect(await store.leerEtapa(), 'estudios');
+  });
+
+  test('limpiar() borra respuestas y etapa (cierre de sesion)', () async {
+    plataforma.valores['glucy.embudo.respuestas'] = '{"1": true}';
+    await store.guardarEtapa(EmbudoStore.etapaEstudios);
 
     await store.limpiar();
 

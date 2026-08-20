@@ -81,5 +81,9 @@
 				</array>
 			</dict>
 		</array>
-	</dict>
+		<key>NSCameraUsageDescription</key>
+	<string>Glucy usa la cámara para tomar la foto de tus estudios de laboratorio.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Glucy accede a tus fotos para subir la imagen de un estudio de laboratorio.</string>
+</dict>
 </plist>
