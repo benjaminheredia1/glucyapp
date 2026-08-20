@@ -158,6 +158,35 @@ void main() {
     expect(find.textContaining('Subido · en revisión'), findsOneWidget);
   });
 
+  testWidgets('subir en el casillero equivocado no registra ese tipo: vale lo que la IA detecto', (tester) async {
+    final api = EstudioApiFalso(tipos_: _tipos)
+      // El paciente toca "Glucemia" (tipo 1) pero el archivo es de Creatinina
+      // (tipo 2): la IA detecta y aprueba el 2.
+      ..aprobadosPorIa = [2];
+    await montar(tester, api);
+
+    await tester.tap(find.text('Glucemia en ayunas'));
+    await tester.pumpAndSettle();
+
+    // Nada registrado a mano: Glucemia sigue pendiente de subir y Creatinina
+    // quedo aprobada por la IA.
+    expect(api.tiposRegistrados, isEmpty);
+    expect(find.text('Aprobado'), findsOneWidget);
+    expect(find.text('Pendiente de subir'), findsNWidgets(2));
+    expect(find.textContaining('La IA detectó y aprobó: Creatinina'), findsOneWidget);
+  });
+
+  testWidgets('si la IA no detecta nada, la subida individual registra el tipo tocado en revision', (tester) async {
+    final api = EstudioApiFalso(tipos_: _tipos);
+    await montar(tester, api);
+
+    await tester.tap(find.text('Glucemia en ayunas'));
+    await tester.pumpAndSettle();
+
+    expect(api.tiposRegistrados, [1]);
+    expect(find.textContaining('Subido · en revisión'), findsOneWidget);
+  });
+
   testWidgets('con todo subido o aprobado no se ofrece la carga conjunta', (tester) async {
     final api = EstudioApiFalso(
       tipos_: _tipos.sublist(0, 2),

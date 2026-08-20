@@ -143,20 +143,23 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
     setState(() => _subiendoTipoId = fila.tipo.id);
 
     try {
-      final estudio = await ref.read(estudioApiProvider).subir(
-            tipoEstudioId: fila.tipo.id,
-            rutaArchivo: archivo.ruta,
-            nombreArchivo: archivo.nombre,
-          );
+      final api = ref.read(estudioApiProvider);
+      final subida = await api.subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
+
+      // La IA decide que estudio es el archivo, sin importar en que fila lo
+      // subio el paciente: si detecto y aprobo algo, ese es el veredicto y no
+      // se registra nada del tipo tocado. Solo si no detecto ninguno, el
+      // archivo se registra en el tipo elegido y espera al doctor.
+      if (subida.aprobados.isEmpty) {
+        await api.registrar(tipoEstudioId: fila.tipo.id, archivoId: subida.archivoId);
+      }
 
       if (!mounted) return;
 
-      // Veredicto inmediato: si la IA leyo el resultado, el estudio ya nace
-      // aprobado; si no, sigue el camino de revision del doctor.
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(estudio.estado == 'aprobado'
-            ? '${fila.tipo.nombre}: válido. La IA lo aprobó al momento.'
-            : '${fila.tipo.nombre} subido. Queda en revisión médica.'),
+        content: Text(subida.aprobados.isEmpty
+            ? '${fila.tipo.nombre} subido. Queda en revisión médica.'
+            : 'Válido. La IA detectó y aprobó: ${_nombresDe(subida.aprobados)}.'),
       ));
 
       await _cargar();
@@ -174,6 +177,17 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
     } finally {
       if (mounted) setState(() => _subiendoTipoId = null);
     }
+  }
+
+  /// Nombres de los tipos aprobados, para el mensaje del veredicto. El
+  /// backend manda la relacion `tipo_estudio`; si faltara, se cruza con el
+  /// catalogo ya cargado en pantalla.
+  String _nombresDe(List<EstudioMedico> aprobados) {
+    final porId = {for (final fila in _filas) fila.tipo.id: fila.tipo.nombre};
+
+    return aprobados
+        .map((e) => e.tipoEstudio?.nombre ?? porId[e.tipoEstudioId] ?? 'estudio ${e.tipoEstudioId}')
+        .join(', ');
   }
 
   /// Filas que la carga conjunta tiene que cubrir: sin subir o rechazadas.
@@ -216,12 +230,12 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
 
       if (!mounted) return;
 
-      final aprobados = subida.aprobados.length;
+      final nombres = _nombresDe(subida.aprobados);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(switch ((aprobados, enRevision)) {
+        content: Text(switch ((subida.aprobados.length, enRevision)) {
           (0, _) => '${archivo.nombre} subido: $enRevision estudios quedan en revisión médica.',
-          (_, 0) => '${archivo.nombre}: válido. La IA aprobó $aprobados estudios al momento.',
-          _ => '${archivo.nombre}: la IA aprobó $aprobados al momento; $enRevision quedan en revisión médica.',
+          (_, 0) => 'Válido. La IA detectó y aprobó: $nombres.',
+          _ => 'La IA detectó y aprobó: $nombres. $enRevision quedan en revisión médica.',
         }),
       ));
 
@@ -275,7 +289,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
                   Text('Estudios requeridos',
                       style: TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: GlucyColors.deep)),
                   SizedBox(height: 3),
-                  Text('Sube foto o PDF de cada resultado; la IA lo analiza al momento y te dice si es válido.',
+                  Text('Sube foto o PDF; la IA detecta qué estudio es —aunque lo subas en otro casillero— y te dice al momento si es válido.',
                       style: TextStyle(fontSize: 12.5, color: Color(0x8C10262A))),
                 ],
               ),
