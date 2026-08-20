@@ -73,18 +73,48 @@ class _ProfileState extends ConsumerState<Profile> {
     super.dispose();
   }
 
-  Future<void> _continuar() async {
-    setState(() {
-      _guardando = true;
-      _error = null;
-    });
+  /// Devuelve el primer problema encontrado, o `null` si todo esta bien. El
+  /// PATCH del backend es parcial y aceptaria campos vacios: la obligacion de
+  /// llenarlos es de esta pantalla, antes de seguir al filtro clinico.
+  String? _validar({
+    required String nombre,
+    required String telefono,
+    required double? peso,
+    required int? talla,
+  }) {
+    if (nombre.isEmpty) return 'Escribe tu nombre completo.';
+    if (telefono.isEmpty) return 'Escribe tu teléfono móvil.';
+    if (telefono.length < 7) return 'El teléfono debe tener al menos 7 dígitos.';
+    if (_fechaNacimiento == null) return 'Selecciona tu fecha de nacimiento.';
+    if (_sexoSeleccionado == null) return 'Selecciona tu sexo.';
+    if (talla == null) return 'Escribe tu talla en centímetros.';
+    if (talla < 80 || talla > 250) return 'La talla debe estar entre 80 y 250 cm.';
+    if (peso == null) return 'Escribe tu peso en kilogramos.';
+    if (peso < 20 || peso > 300) return 'El peso debe estar entre 20 y 300 kg.';
 
+    return null;
+  }
+
+  Future<void> _continuar() async {
     final nombre = _nombreController.text.trim();
     final telefono = _telefonoController.text.trim();
     final peso = double.tryParse(_pesoController.text.replaceAll(',', '.'));
     final talla = int.tryParse(_tallaController.text);
     // El backend espera minusculas: femenino / masculino / otro.
     final sexo = _sexoSeleccionado?.toLowerCase();
+
+    final problema = _validar(nombre: nombre, telefono: telefono, peso: peso, talla: talla);
+
+    if (problema != null) {
+      setState(() => _error = problema);
+
+      return;
+    }
+
+    setState(() {
+      _guardando = true;
+      _error = null;
+    });
 
     try {
       // Solo viajan los campos con valor (PATCH parcial).
@@ -101,12 +131,12 @@ class _ProfileState extends ConsumerState<Profile> {
       context.go(Rutas.filtroClinico);
     } on FalloApi catch (fallo) {
       if (!mounted) return;
-      setState(() => _error = fallo.mensaje);
+      setState(() => _error = 'No se pudo guardar tu perfil: ${fallo.mensaje}');
     } catch (e) {
       // Un fallo que no es de la API (parsear una respuesta rara, por
       // ejemplo) tampoco puede dejar la pantalla colgada sin explicacion.
       if (!mounted) return;
-      setState(() => _error = '$e');
+      setState(() => _error = 'No se pudo guardar tu perfil: $e');
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -551,7 +581,7 @@ class _ProfileState extends ConsumerState<Profile> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                'No se pudo guardar tu perfil: $_error',
+                _error!,
                 style: const TextStyle(fontSize: 12.5, color: GlucyColors.alert),
               ),
             ),

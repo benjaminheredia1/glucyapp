@@ -70,19 +70,29 @@ Future<GoRouter> montar(WidgetTester tester, PerfilApiFalsa api) async {
 
 String rutaActual(GoRouter router) => router.routerDelegate.currentConfiguration.uri.path;
 
+/// Llena todos los campos obligatorios con valores validos. La fecha se elige
+/// confirmando el picker con su valor inicial (1/1/2000).
+Future<void> llenarValido(WidgetTester tester) async {
+  await tester.enterText(find.byKey(const Key('campo-nombre')), 'María Torres');
+  await tester.enterText(find.byKey(const Key('campo-telefono')), '987654321');
+  await tester.enterText(find.byKey(const Key('campo-peso')), '74');
+  await tester.enterText(find.byKey(const Key('campo-talla')), '162');
+  await tester.tap(find.text('Seleccionar fecha'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Confirmar'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('campo-sexo')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Femenino').last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('Continuar manda el PATCH con nombre, telefono, sexo, peso y talla y va al filtro', (tester) async {
     final api = PerfilApiFalsa();
     final router = await montar(tester, api);
 
-    await tester.enterText(find.byKey(const Key('campo-nombre')), 'María Torres');
-    await tester.enterText(find.byKey(const Key('campo-telefono')), '987654321');
-    await tester.enterText(find.byKey(const Key('campo-peso')), '74');
-    await tester.enterText(find.byKey(const Key('campo-talla')), '162');
-    await tester.tap(find.byKey(const Key('campo-sexo')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Femenino').last);
-    await tester.pumpAndSettle();
+    await llenarValido(tester);
 
     await tester.tap(find.text('Continuar al filtro clínico'));
     await tester.pumpAndSettle();
@@ -92,23 +102,42 @@ void main() {
     expect(api.ultimoPatch?['sexo'], 'femenino');
     expect(api.ultimoPatch?['pesoKg'], 74.0);
     expect(api.ultimoPatch?['tallaCm'], 162);
+    expect(api.ultimoPatch?['fechaNacimiento'], DateTime(2000, 1, 1));
     expect(rutaActual(router), Rutas.filtroClinico);
   });
 
-  testWidgets('los campos vacios no viajan en el PATCH', (tester) async {
+  testWidgets('con campos vacios no hay PATCH ni navegacion: se muestra la validacion', (tester) async {
     final api = PerfilApiFalsa();
-    await montar(tester, api);
+    final router = await montar(tester, api);
 
     await tester.tap(find.text('Continuar al filtro clínico'));
     await tester.pumpAndSettle();
 
-    expect(api.ultimoPatch, isNotNull);
-    expect(api.ultimoPatch!.values.every((v) => v == null), isTrue);
+    expect(api.ultimoPatch, isNull);
+    expect(rutaActual(router), Rutas.perfil);
+    expect(find.text('Escribe tu nombre completo.'), findsOneWidget);
+  });
+
+  testWidgets('un peso fuera de rango bloquea el envio', (tester) async {
+    final api = PerfilApiFalsa();
+    final router = await montar(tester, api);
+
+    await llenarValido(tester);
+    await tester.enterText(find.byKey(const Key('campo-peso')), '900');
+
+    await tester.tap(find.text('Continuar al filtro clínico'));
+    await tester.pumpAndSettle();
+
+    expect(api.ultimoPatch, isNull);
+    expect(rutaActual(router), Rutas.perfil);
+    expect(find.text('El peso debe estar entre 20 y 300 kg.'), findsOneWidget);
   });
 
   testWidgets('si el PATCH falla se queda en la pantalla y muestra el error', (tester) async {
     final api = PerfilApiFalsa()..error = const FalloServidor();
     final router = await montar(tester, api);
+
+    await llenarValido(tester);
 
     await tester.tap(find.text('Continuar al filtro clínico'));
     await tester.pumpAndSettle();
