@@ -63,7 +63,7 @@ void main() {
       api = EstudioApi(dio);
     });
 
-    test('subirArchivo sube el documento una sola vez y devuelve su id', () async {
+    test('subirArchivo devuelve el id y los estudios que la IA aprobo al momento', () async {
       final archivo = File('${Directory.systemTemp.path}/estudio-prueba.pdf')..writeAsBytesSync([1, 2, 3]);
       // En Windows el stream del multipart puede retener el handle un rato:
       // borrar es cortesia, no requisito del test.
@@ -77,13 +77,50 @@ void main() {
 
       adaptador.onPost(
         '/archivos/subir',
-        (servidor) => servidor.reply(201, {'id': 9, 'nombre': 'estudio-prueba.pdf'}),
+        (servidor) => servidor.reply(201, {
+          'id': 9,
+          'nombre': 'estudio-prueba.pdf',
+          'estudiosAprobados': [
+            {
+              'id': 31,
+              'estado': 'aprobado',
+              'fecha': '2026-08-20T00:00:00.000000Z',
+              'tipoEstudioId': 1,
+              'archivoId': 9,
+            },
+          ],
+        }),
         data: Matchers.any,
       );
 
-      final id = await api.subirArchivo(rutaArchivo: archivo.path, nombreArchivo: 'estudio-prueba.pdf');
+      final subida = await api.subirArchivo(rutaArchivo: archivo.path, nombreArchivo: 'estudio-prueba.pdf');
 
-      expect(id, 9);
+      expect(subida.archivoId, 9);
+      expect(subida.aprobados, hasLength(1));
+      expect(subida.aprobados.first.estado, 'aprobado');
+      expect(subida.aprobados.first.tipoEstudioId, 1);
+    });
+
+    test('subirArchivo tolera una respuesta sin estudiosAprobados (backend viejo)', () async {
+      final archivo = File('${Directory.systemTemp.path}/estudio-viejo.pdf')..writeAsBytesSync([4, 5, 6]);
+      addTearDown(() {
+        try {
+          archivo.deleteSync();
+        } on FileSystemException {
+          // se queda en el temp del sistema
+        }
+      });
+
+      adaptador.onPost(
+        '/archivos/subir',
+        (servidor) => servidor.reply(201, {'id': 9, 'nombre': 'estudio-viejo.pdf'}),
+        data: Matchers.any,
+      );
+
+      final subida = await api.subirArchivo(rutaArchivo: archivo.path, nombreArchivo: 'estudio-viejo.pdf');
+
+      expect(subida.archivoId, 9);
+      expect(subida.aprobados, isEmpty);
     });
 
     test('registrar crea el estudio de un tipo apuntando a un archivo ya subido', () async {

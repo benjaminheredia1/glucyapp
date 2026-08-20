@@ -12,6 +12,9 @@ class EstudioApiFalso implements EstudioApi {
   int archivosSubidos = 0;
   final List<int> tiposRegistrados = [];
 
+  /// Tipos que "la IA" aprueba al momento en la proxima subida.
+  List<int> aprobadosPorIa = const [];
+
   @override
   Future<List<TipoEstudio>> tipos() async => tipos_;
 
@@ -19,9 +22,22 @@ class EstudioApiFalso implements EstudioApi {
   Future<List<EstudioMedico>> propios() async => propios_;
 
   @override
-  Future<int> subirArchivo({required String rutaArchivo, required String nombreArchivo}) async {
+  Future<ResultadoSubida> subirArchivo({required String rutaArchivo, required String nombreArchivo}) async {
     archivosSubidos++;
-    return 9;
+
+    final aprobados = [
+      for (final tipoId in aprobadosPorIa)
+        EstudioMedico(
+          id: 200 + tipoId,
+          estado: 'aprobado',
+          fecha: DateTime(2026, 8, 20),
+          tipoEstudioId: tipoId,
+          archivoId: 9,
+        ),
+    ];
+    propios_ = [...aprobados, ...propios_];
+
+    return (archivoId: 9, aprobados: aprobados);
   }
 
   @override
@@ -45,8 +61,11 @@ class EstudioApiFalso implements EstudioApi {
     required String nombreArchivo,
     String? descripcion,
   }) async {
-    final archivoId = await subirArchivo(rutaArchivo: rutaArchivo, nombreArchivo: nombreArchivo);
-    return registrar(tipoEstudioId: tipoEstudioId, archivoId: archivoId);
+    final subida = await subirArchivo(rutaArchivo: rutaArchivo, nombreArchivo: nombreArchivo);
+    for (final aprobado in subida.aprobados) {
+      if (aprobado.tipoEstudioId == tipoEstudioId) return aprobado;
+    }
+    return registrar(tipoEstudioId: tipoEstudioId, archivoId: subida.archivoId);
   }
 
   @override
@@ -121,6 +140,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.tiposRegistrados, [1, 2]);
+  });
+
+  testWidgets('los tipos que la IA aprueba al momento no se registran como pendientes', (tester) async {
+    final api = EstudioApiFalso(tipos_: _tipos)
+      // La IA lee el archivo y aprueba los tipos 1 y 2 en la misma subida.
+      ..aprobadosPorIa = [1, 2];
+    await montar(tester, api);
+
+    await tester.ensureVisible(find.byKey(const Key('boton-subir-todo')));
+    await tester.tap(find.byKey(const Key('boton-subir-todo')));
+    await tester.pumpAndSettle();
+
+    // Solo el tipo 3 (no detectado) queda registrado en revision manual.
+    expect(api.tiposRegistrados, [3]);
+    expect(find.text('Aprobado'), findsNWidgets(2));
+    expect(find.textContaining('Subido · en revisión'), findsOneWidget);
   });
 
   testWidgets('con todo subido o aprobado no se ofrece la carga conjunta', (tester) async {

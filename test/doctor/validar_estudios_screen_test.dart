@@ -29,7 +29,7 @@ class EstudioApiFalso implements EstudioApi {
   Future<List<TipoEstudio>> tipos() => throw UnimplementedError();
 
   @override
-  Future<int> subirArchivo({required String rutaArchivo, required String nombreArchivo}) =>
+  Future<ResultadoSubida> subirArchivo({required String rutaArchivo, required String nombreArchivo}) =>
       throw UnimplementedError();
 
   @override

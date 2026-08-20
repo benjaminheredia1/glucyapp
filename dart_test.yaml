@@ -1,0 +1,6 @@
+# Configuracion del runner de tests.
+tags:
+  # Pruebas contra el backend real (test/integration). Ademas del tag piden
+  # GLUCY_INTEGRACION=1 en el entorno; sin la variable quedan en skip.
+  integration:
+    timeout: 2x

@@ -143,7 +143,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
     setState(() => _subiendoTipoId = fila.tipo.id);
 
     try {
-      await ref.read(estudioApiProvider).subir(
+      final estudio = await ref.read(estudioApiProvider).subir(
             tipoEstudioId: fila.tipo.id,
             rutaArchivo: archivo.ruta,
             nombreArchivo: archivo.nombre,
@@ -151,11 +151,21 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${fila.tipo.nombre} subido. Queda en revisión médica.')),
-      );
+      // Veredicto inmediato: si la IA leyo el resultado, el estudio ya nace
+      // aprobado; si no, sigue el camino de revision del doctor.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(estudio.estado == 'aprobado'
+            ? '${fila.tipo.nombre}: válido. La IA lo aprobó al momento.'
+            : '${fila.tipo.nombre} subido. Queda en revisión médica.'),
+      ));
 
       await _cargar();
+    } on FalloValidacion catch (fallo) {
+      // Veredicto inmediato de la IA: el archivo no es un estudio legible.
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Archivo no válido: ${fallo.mensaje}')));
     } on FalloApi catch (fallo) {
       if (!mounted) return;
 
@@ -186,23 +196,42 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
 
     try {
       final api = ref.read(estudioApiProvider);
-      final archivoId = await api.subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
+      final subida = await api.subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
+
+      // Los tipos que la IA ya aprobo en este archivo no se registran de
+      // nuevo: ese seria un duplicado pendiente que taparia la aprobacion.
+      final aprobadosPorTipo = {for (final e in subida.aprobados) e.tipoEstudioId};
+      var enRevision = 0;
 
       for (final fila in faltantes) {
+        if (aprobadosPorTipo.contains(fila.tipo.id)) continue;
+
         await api.registrar(
           tipoEstudioId: fila.tipo.id,
-          archivoId: archivoId,
+          archivoId: subida.archivoId,
           descripcion: 'Carga conjunta: ${archivo.nombre}',
         );
+        enRevision++;
       }
 
       if (!mounted) return;
 
+      final aprobados = subida.aprobados.length;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${archivo.nombre} subido: ${faltantes.length} estudios quedan en revisión médica.'),
+        content: Text(switch ((aprobados, enRevision)) {
+          (0, _) => '${archivo.nombre} subido: $enRevision estudios quedan en revisión médica.',
+          (_, 0) => '${archivo.nombre}: válido. La IA aprobó $aprobados estudios al momento.',
+          _ => '${archivo.nombre}: la IA aprobó $aprobados al momento; $enRevision quedan en revisión médica.',
+        }),
       ));
 
       await _cargar();
+    } on FalloValidacion catch (fallo) {
+      // La IA rechazo el archivo al momento: no se registro ningun estudio.
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Archivo no válido: ${fallo.mensaje}')));
     } on FalloApi catch (fallo) {
       if (!mounted) return;
 
@@ -246,7 +275,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
                   Text('Estudios requeridos',
                       style: TextStyle(fontFamily: 'Sora', fontSize: 20, fontWeight: FontWeight.w700, color: GlucyColors.deep)),
                   SizedBox(height: 3),
-                  Text('Sube foto o PDF de cada resultado; tu médica los valida uno a uno.',
+                  Text('Sube foto o PDF de cada resultado; la IA lo analiza al momento y te dice si es válido.',
                       style: TextStyle(fontSize: 12.5, color: Color(0x8C10262A))),
                 ],
               ),

@@ -65,6 +65,10 @@ class EstudioMedico {
   final String? pacienteNombre;
 }
 
+/// Resultado de subir un archivo: el id para registrar estudios que falten y
+/// los estudios que la IA detecto y aprobo al momento en ese mismo archivo.
+typedef ResultadoSubida = ({int archivoId, List<EstudioMedico> aprobados});
+
 class EstudioApi {
   const EstudioApi(this._dio);
 
@@ -103,9 +107,15 @@ class EstudioApi {
     }
   }
 
-  /// Sube el documento (`POST /archivos/subir`) y devuelve su id, para poder
-  /// registrarlo como estudio de uno o varios tipos sin volver a subirlo.
-  Future<int> subirArchivo({required String rutaArchivo, required String nombreArchivo}) async {
+  /// Sube el documento (`POST /archivos/subir`). La IA del backend lo analiza
+  /// en esta misma peticion y el veredicto llega al momento:
+  ///
+  /// - 422 si no es un estudio medico legible: [FalloValidacion] con el
+  ///   motivo de la IA.
+  /// - 2xx si es valido: `aprobados` trae los estudios que la IA detecto y
+  ///   dejo aprobados (vacio si la IA esta apagada o no detecto ninguno; en
+  ///   ese caso el flujo manual de revision del doctor sigue vigente).
+  Future<ResultadoSubida> subirArchivo({required String rutaArchivo, required String nombreArchivo}) async {
     try {
       final respuesta = await _dio.post<Map<String, dynamic>>(
         '/archivos/subir',
@@ -115,7 +125,13 @@ class EstudioApi {
         }),
       );
 
-      return respuesta.data!['id'] as int;
+      return (
+        archivoId: respuesta.data!['id'] as int,
+        aprobados: [
+          for (final fila in respuesta.data!['estudiosAprobados'] as List<dynamic>? ?? const [])
+            EstudioMedico.fromJson(fila as Map<String, dynamic>),
+        ],
+      );
     } on DioException catch (e) {
       throw e.error is FalloApi ? e.error as FalloApi : const FalloDesconocido();
     }
@@ -143,16 +159,25 @@ class EstudioApi {
     }
   }
 
-  /// Sube el documento y registra el estudio en un solo paso.
+  /// Sube el documento y registra el estudio en un solo paso. Un
+  /// [FalloValidacion] aqui significa que la IA rechazo el archivo al
+  /// momento: no se registra ningun estudio.
+  ///
+  /// Si la IA ya aprobo un estudio de este tipo en el archivo subido, ese es
+  /// el resultado y no se registra un duplicado pendiente.
   Future<EstudioMedico> subir({
     required int tipoEstudioId,
     required String rutaArchivo,
     required String nombreArchivo,
     String? descripcion,
   }) async {
-    final archivoId = await subirArchivo(rutaArchivo: rutaArchivo, nombreArchivo: nombreArchivo);
+    final subida = await subirArchivo(rutaArchivo: rutaArchivo, nombreArchivo: nombreArchivo);
 
-    return registrar(tipoEstudioId: tipoEstudioId, archivoId: archivoId, descripcion: descripcion);
+    for (final aprobado in subida.aprobados) {
+      if (aprobado.tipoEstudioId == tipoEstudioId) return aprobado;
+    }
+
+    return registrar(tipoEstudioId: tipoEstudioId, archivoId: subida.archivoId, descripcion: descripcion);
   }
 
   // ------------------------------------------------- portal del doctor
