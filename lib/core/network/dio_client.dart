@@ -7,6 +7,7 @@ import '../config/app_config.dart';
 import '../storage/token_store.dart';
 import 'auth_interceptor.dart';
 import 'error_interceptor.dart';
+import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 
 /// Lo sobrescribe la Task 12 con la renovacion real. Por defecto, no hay forma
 /// de renovar: un 401 cierra la sesion.
@@ -63,6 +64,15 @@ String redactarParaLog(String linea) => _tapar(
 final dioPublicoProvider = Provider<Dio>((ref) {
   final config = ref.watch(appConfigProvider);
   final dio = Dio(_opciones(config));
+  dio.interceptors.add(PrettyDioLogger(
+    requestHeader: true,
+    requestBody: true,
+    responseBody: true,
+    responseHeader: false,
+    error: true,
+    compact: true,
+    maxWidth: 90,
+  ));
 
   dio.interceptors.add(ErrorInterceptor());
 

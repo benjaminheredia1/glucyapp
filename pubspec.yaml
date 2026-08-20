@@ -53,6 +53,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: any
+  pretty_dio_logger: ^1.4.0
 
 # chucker_flutter pide share_plus ^12, que arrastra win32 ^5 y choca con el
 # win32 ^6 de flutter_secure_storage. share_plus 13 ya usa win32 ^6: subirlo
