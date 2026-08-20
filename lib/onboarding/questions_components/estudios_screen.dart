@@ -37,7 +37,8 @@ class _Fila {
         null => _Estado.sinSubir,
         'aprobado' => _Estado.aprobado,
         'rechazado' => _Estado.rechazado,
-        // 'pendiente' y 'en_revision': ya subido, espera veredicto del doctor.
+        // 'pendiente' y 'en_revision': filas de versiones viejas (cuando
+        // existia revision del doctor); se resuelven volviendo a subir.
         _ => _Estado.enRevision,
       };
 }
@@ -49,9 +50,9 @@ typedef ArchivoElegido = ({String nombre, String ruta});
 typedef SelectorDeArchivo = Future<ArchivoElegido?> Function();
 
 /// Estudios del paciente contra la API: lista el paquete requerido
-/// (`/tipo-estudios`), muestra el veredicto de cada carga y sube el
-/// documento (`/archivos/subir` + `/estudios-medicos`). La aprobación la
-/// firma un doctor desde su portal; aquí solo se ve el estado.
+/// (`/tipo-estudios`) y sube el documento (`/archivos/subir`). La IA del
+/// backend detecta qué estudios contiene el archivo y los aprueba en la
+/// misma subida: el veredicto es inmediato, sin revisión humana.
 class EstudiosScreen extends ConsumerStatefulWidget {
   const EstudiosScreen({super.key, this.elegirArchivo});
 
@@ -115,7 +116,6 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
   }
 
   int get _completos => _filas.where((f) => f.estado == _Estado.aprobado).length;
-  int get _subidos => _filas.where((f) => f.estado != _Estado.sinSubir).length;
   int get _total => _filas.length;
   bool get _todosAprobados => _total > 0 && _completos == _total;
 
@@ -134,7 +134,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
   }
 
   Future<void> _subir(_Fila fila) async {
-    if (fila.estado == _Estado.aprobado || fila.estado == _Estado.enRevision) return;
+    if (fila.estado == _Estado.aprobado) return;
 
     final archivo = await _elegirArchivo('Elegir resultado (foto o PDF)');
 
@@ -143,22 +143,20 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
     setState(() => _subiendoTipoId = fila.tipo.id);
 
     try {
-      final api = ref.read(estudioApiProvider);
-      final subida = await api.subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
-
       // La IA decide que estudio es el archivo, sin importar en que fila lo
-      // subio el paciente: si detecto y aprobo algo, ese es el veredicto y no
-      // se registra nada del tipo tocado. Solo si no detecto ninguno, el
-      // archivo se registra en el tipo elegido y espera al doctor.
-      if (subida.aprobados.isEmpty) {
-        await api.registrar(tipoEstudioId: fila.tipo.id, archivoId: subida.archivoId);
-      }
+      // subio el paciente, y lo aprueba en la misma subida. Ya no hay
+      // revision humana de estudios: si no detecto el que se esperaba, no se
+      // registra nada pendiente (nadie lo revisaria) y se le pide otro
+      // archivo.
+      final subida = await ref
+          .read(estudioApiProvider)
+          .subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(subida.aprobados.isEmpty
-            ? '${fila.tipo.nombre} subido. Queda en revisión médica.'
+            ? 'No encontramos resultados de tu paquete en el archivo. Sube el informe que incluya ${fila.tipo.nombre}.'
             : 'Válido. La IA detectó y aprobó: ${_nombresDe(subida.aprobados)}.'),
       ));
 
@@ -190,13 +188,13 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
         .join(', ');
   }
 
-  /// Filas que la carga conjunta tiene que cubrir: sin subir o rechazadas.
-  List<_Fila> get _faltantes =>
-      [for (final f in _filas) if (f.estado == _Estado.sinSubir || f.estado == _Estado.rechazado) f];
+  /// Filas que la carga conjunta tiene que cubrir: todo lo que no este
+  /// aprobado (las "en revision" son restos de versiones viejas y tambien se
+  /// resuelven volviendo a subir).
+  List<_Fila> get _faltantes => [for (final f in _filas) if (f.estado != _Estado.aprobado) f];
 
-  /// Un solo archivo (la hoja completa del laboratorio) que se registra como
-  /// estudio de cada tipo que falte: todos quedan "Subido · en revisión" y el
-  /// doctor valida tipo por tipo sobre el mismo documento.
+  /// Un solo archivo (la hoja completa del laboratorio): la IA extrae y
+  /// aprueba en la misma subida cada tipo que encuentre en el.
   Future<void> _subirTodo() async {
     final faltantes = _faltantes;
 
@@ -209,33 +207,22 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
     setState(() => _subiendoTodo = true);
 
     try {
-      final api = ref.read(estudioApiProvider);
-      final subida = await api.subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
-
-      // Los tipos que la IA ya aprobo en este archivo no se registran de
-      // nuevo: ese seria un duplicado pendiente que taparia la aprobacion.
-      final aprobadosPorTipo = {for (final e in subida.aprobados) e.tipoEstudioId};
-      var enRevision = 0;
-
-      for (final fila in faltantes) {
-        if (aprobadosPorTipo.contains(fila.tipo.id)) continue;
-
-        await api.registrar(
-          tipoEstudioId: fila.tipo.id,
-          archivoId: subida.archivoId,
-          descripcion: 'Carga conjunta: ${archivo.nombre}',
-        );
-        enRevision++;
-      }
+      final subida = await ref
+          .read(estudioApiProvider)
+          .subirArchivo(rutaArchivo: archivo.ruta, nombreArchivo: archivo.nombre);
 
       if (!mounted) return;
 
+      // Lo no detectado no se registra pendiente: sin revision humana de
+      // estudios, esa fila no la resolveria nadie. Se pide otro archivo.
+      final sinDetectar = faltantes.length - subida.aprobados.length;
       final nombres = _nombresDe(subida.aprobados);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(switch ((subida.aprobados.length, enRevision)) {
-          (0, _) => '${archivo.nombre} subido: $enRevision estudios quedan en revisión médica.',
-          (_, 0) => 'Válido. La IA detectó y aprobó: $nombres.',
-          _ => 'La IA detectó y aprobó: $nombres. $enRevision quedan en revisión médica.',
+        content: Text(switch ((subida.aprobados.length, sinDetectar)) {
+          (0, _) => 'No encontramos resultados de tu paquete en ${archivo.nombre}. Prueba con el informe completo del laboratorio.',
+          (_, int faltan) when faltan <= 0 => 'Válido. La IA detectó y aprobó: $nombres.',
+          _ => 'La IA detectó y aprobó: $nombres. Sube otro archivo con '
+              '${sinDetectar == 1 ? 'el estudio restante' : 'los $sinDetectar restantes'}.',
         }),
       ));
 
@@ -265,8 +252,10 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
     switch (estado) {
       case _Estado.aprobado:
         return (tint: GlucyColors.tealBg, fg: GlucyColors.primary, icon: Icons.check_circle_outline, label: 'Aprobado');
+      // Restos de subidas viejas (cuando existia revision del doctor) o de
+      // una IA caida: nadie los revisa ya, se resuelven volviendo a subir.
       case _Estado.enRevision:
-        return (tint: GlucyColors.track, fg: GlucyColors.tealText, icon: Icons.hourglass_top_outlined, label: 'Subido · en revisión médica');
+        return (tint: GlucyColors.warnBg, fg: GlucyColors.warn, icon: Icons.refresh_outlined, label: 'Subido · vuelve a subirlo para validarlo');
       case _Estado.sinSubir:
         return (tint: GlucyColors.warnBg, fg: GlucyColors.warn, icon: Icons.schedule_outlined, label: 'Pendiente de subir');
       case _Estado.rechazado:
@@ -339,11 +328,7 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: Text(
-                  _todosAprobados
-                      ? 'Enviar a análisis clínico'
-                      : _subidos < _total
-                          ? 'Sube los estudios para continuar'
-                          : 'Esperando validación médica',
+                  _todosAprobados ? 'Enviar a análisis clínico' : 'Sube los estudios para continuar',
                   style: const TextStyle(fontFamily: 'Sora', fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -408,7 +393,8 @@ class _EstudiosScreenState extends ConsumerState<EstudiosScreen> {
     final estadoTexto = fila.estado == _Estado.rechazado && motivo != null && motivo.isNotEmpty
         ? '${meta.label} · $motivo'
         : meta.label;
-    final accionable = fila.estado == _Estado.sinSubir || fila.estado == _Estado.rechazado;
+    // Todo lo no aprobado se puede volver a subir: la IA valida al momento.
+    final accionable = fila.estado != _Estado.aprobado;
 
     return InkWell(
       borderRadius: BorderRadius.circular(12),

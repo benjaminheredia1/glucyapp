@@ -103,14 +103,13 @@ Future<void> montar(WidgetTester tester, EstudioApiFalso api) async {
 }
 
 void main() {
-  testWidgets('subir un archivo con todo registra cada estudio que faltaba y los marca subidos', (tester) async {
+  testWidgets('la carga conjunta aprueba lo que la IA detecta y no registra nada pendiente', (tester) async {
     final api = EstudioApiFalso(
       tipos_: _tipos,
       propios_: [
-        // El tipo 1 ya esta aprobado: no se vuelve a registrar.
         EstudioMedico(id: 50, estado: 'aprobado', fecha: DateTime(2026, 8, 10), tipoEstudioId: 1),
       ],
-    );
+    )..aprobadosPorIa = [2];
     await montar(tester, api);
 
     expect(find.text('Pendiente de subir'), findsNWidgets(2));
@@ -119,43 +118,31 @@ void main() {
     await tester.tap(find.byKey(const Key('boton-subir-todo')));
     await tester.pumpAndSettle();
 
-    // Un solo archivo subido, un registro por cada tipo que faltaba.
+    // Un solo archivo subido; la IA aprobo el tipo 2 y el 3 NO queda
+    // registrado en revision (ya no hay quien lo revise): se pide otro
+    // archivo.
     expect(api.archivosSubidos, 1);
-    expect(api.tiposRegistrados, [2, 3]);
-    expect(find.text('Pendiente de subir'), findsNothing);
-    expect(find.textContaining('Subido · en revisión'), findsNWidgets(2));
+    expect(api.tiposRegistrados, isEmpty);
+    expect(find.text('Aprobado'), findsNWidgets(2));
+    expect(find.text('Pendiente de subir'), findsOneWidget);
+    expect(find.textContaining('Sube otro archivo con el estudio restante'), findsOneWidget);
   });
 
-  testWidgets('un estudio rechazado tambien se cubre con la carga conjunta', (tester) async {
+  testWidgets('un estudio rechazado se cubre cuando la IA lo detecta en la carga conjunta', (tester) async {
     final api = EstudioApiFalso(
       tipos_: _tipos.sublist(0, 2),
       propios_: [
         EstudioMedico(id: 51, estado: 'rechazado', fecha: DateTime(2026, 8, 10), tipoEstudioId: 1, motivoRechazo: 'borroso'),
       ],
-    );
+    )..aprobadosPorIa = [1, 2];
     await montar(tester, api);
 
     await tester.ensureVisible(find.byKey(const Key('boton-subir-todo')));
     await tester.tap(find.byKey(const Key('boton-subir-todo')));
     await tester.pumpAndSettle();
 
-    expect(api.tiposRegistrados, [1, 2]);
-  });
-
-  testWidgets('los tipos que la IA aprueba al momento no se registran como pendientes', (tester) async {
-    final api = EstudioApiFalso(tipos_: _tipos)
-      // La IA lee el archivo y aprueba los tipos 1 y 2 en la misma subida.
-      ..aprobadosPorIa = [1, 2];
-    await montar(tester, api);
-
-    await tester.ensureVisible(find.byKey(const Key('boton-subir-todo')));
-    await tester.tap(find.byKey(const Key('boton-subir-todo')));
-    await tester.pumpAndSettle();
-
-    // Solo el tipo 3 (no detectado) queda registrado en revision manual.
-    expect(api.tiposRegistrados, [3]);
+    expect(api.tiposRegistrados, isEmpty);
     expect(find.text('Aprobado'), findsNWidgets(2));
-    expect(find.textContaining('Subido · en revisión'), findsOneWidget);
   });
 
   testWidgets('subir en el casillero equivocado no registra ese tipo: vale lo que la IA detecto', (tester) async {
@@ -176,23 +163,43 @@ void main() {
     expect(find.textContaining('La IA detectó y aprobó: Creatinina'), findsOneWidget);
   });
 
-  testWidgets('si la IA no detecta nada, la subida individual registra el tipo tocado en revision', (tester) async {
+  testWidgets('si la IA no detecta nada, no se registra ningun pendiente y se pide otro archivo', (tester) async {
     final api = EstudioApiFalso(tipos_: _tipos);
     await montar(tester, api);
 
     await tester.tap(find.text('Glucemia en ayunas'));
     await tester.pumpAndSettle();
 
-    expect(api.tiposRegistrados, [1]);
-    expect(find.textContaining('Subido · en revisión'), findsOneWidget);
+    expect(api.tiposRegistrados, isEmpty);
+    expect(find.text('Pendiente de subir'), findsNWidgets(3));
+    expect(find.textContaining('No encontramos resultados'), findsOneWidget);
   });
 
-  testWidgets('con todo subido o aprobado no se ofrece la carga conjunta', (tester) async {
+  testWidgets('una fila pendiente de la version vieja se puede volver a subir', (tester) async {
+    final api = EstudioApiFalso(
+      tipos_: _tipos.sublist(0, 2),
+      propios_: [
+        // Resto de cuando existia la revision del doctor: nadie la resolvera.
+        EstudioMedico(id: 51, estado: 'pendiente', fecha: DateTime(2026, 8, 10), tipoEstudioId: 1),
+      ],
+    )..aprobadosPorIa = [1];
+    await montar(tester, api);
+
+    expect(find.textContaining('vuelve a subirlo'), findsOneWidget);
+
+    await tester.tap(find.text('Glucemia en ayunas'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Aprobado'), findsOneWidget);
+    expect(find.textContaining('vuelve a subirlo'), findsNothing);
+  });
+
+  testWidgets('con todo aprobado no se ofrece la carga conjunta', (tester) async {
     final api = EstudioApiFalso(
       tipos_: _tipos.sublist(0, 2),
       propios_: [
         EstudioMedico(id: 50, estado: 'aprobado', fecha: DateTime(2026, 8, 10), tipoEstudioId: 1),
-        EstudioMedico(id: 51, estado: 'pendiente', fecha: DateTime(2026, 8, 10), tipoEstudioId: 2),
+        EstudioMedico(id: 51, estado: 'aprobado', fecha: DateTime(2026, 8, 10), tipoEstudioId: 2),
       ],
     );
     await montar(tester, api);
