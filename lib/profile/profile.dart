@@ -51,6 +51,10 @@ class _ProfileState extends ConsumerState<Profile> {
   final _telefonoController = TextEditingController();
   final _anosDiabetesController = TextEditingController();
 
+  // Medicación actual: nombre + cantidad en texto libre, se agrega por
+  // diálogo y viaja completa en el PATCH.
+  final List<MedicamentoActual> _medicamentos = [];
+
   // Antecedentes familiares (chips seleccionables, como en el diseño)
   final Map<String, bool> _famChips = {
     'diabetes': false,
@@ -117,7 +121,8 @@ class _ProfileState extends ConsumerState<Profile> {
     });
 
     try {
-      // Solo viajan los campos con valor (PATCH parcial).
+      // Solo viajan los campos con valor (PATCH parcial). La medicación se
+      // omite si no se agregó ninguna: el backend no toca lo que no viaja.
       await ref.read(perfilApiProvider).actualizar(
             name: nombre.isEmpty ? null : nombre,
             telefono: telefono.isEmpty ? null : telefono,
@@ -125,6 +130,7 @@ class _ProfileState extends ConsumerState<Profile> {
             sexo: sexo,
             pesoKg: peso,
             tallaCm: talla,
+            medicacionActual: _medicamentos.isEmpty ? null : _medicamentos,
           );
 
       if (!mounted) return;
@@ -483,7 +489,7 @@ class _ProfileState extends ConsumerState<Profile> {
             spacing: 7,
             runSpacing: 7,
             children: [
-              _chipMedicacion('Metformina 850 mg'),
+              for (var i = 0; i < _medicamentos.length; i++) _chipMedicacion(i),
               _chipAgregar(),
             ],
           ),
@@ -503,26 +509,52 @@ class _ProfileState extends ConsumerState<Profile> {
     );
   }
 
-  Widget _chipMedicacion(String label) {
+  Widget _chipMedicacion(int indice) {
+    final medicamento = _medicamentos[indice];
+    final cantidad = medicamento.cantidad;
+    final etiqueta =
+        cantidad == null || cantidad.isEmpty ? medicamento.nombre : '${medicamento.nombre} · $cantidad';
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      padding: const EdgeInsets.fromLTRB(11, 7, 6, 7),
       decoration: BoxDecoration(
         color: GlucyColors.chipBg,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: GlucyColors.primary),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            etiqueta,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: GlucyColors.primary),
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => setState(() => _medicamentos.removeAt(indice)),
+            child: const Icon(Icons.close, size: 14, color: GlucyColors.primary),
+          ),
+        ],
       ),
     );
   }
 
+  Future<void> _agregarMedicamento() async {
+    final agregado = await showDialog<MedicamentoActual>(
+      context: context,
+      builder: (_) => _DialogoMedicamento(decoracion: _fieldDecoration),
+    );
+
+    if (agregado != null && mounted) {
+      setState(() => _medicamentos.add(agregado));
+    }
+  }
+
   Widget _chipAgregar() {
     return InkWell(
+      key: const Key('chip-agregar-medicamento'),
       borderRadius: BorderRadius.circular(999),
-      onTap: () {
-        // TODO: abrir selector para agregar medicación
-      },
+      onTap: _agregarMedicamento,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
         decoration: BoxDecoration(
@@ -607,6 +639,79 @@ class _ProfileState extends ConsumerState<Profile> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Diálogo "Agregar medicamento" (nombre + cantidad). Widget propio, y no un
+/// builder inline, para que los TextEditingController vivan y mueran con el
+/// diálogo: disposearlos en el caller rompe la animación de cierre, que
+/// todavía los referencia.
+class _DialogoMedicamento extends StatefulWidget {
+  const _DialogoMedicamento({required this.decoracion});
+
+  final InputDecoration Function(String label, {String? hint}) decoracion;
+
+  @override
+  State<_DialogoMedicamento> createState() => _DialogoMedicamentoState();
+}
+
+class _DialogoMedicamentoState extends State<_DialogoMedicamento> {
+  final _nombreController = TextEditingController();
+  final _cantidadController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _cantidadController.dispose();
+    super.dispose();
+  }
+
+  void _guardar() {
+    final nombre = _nombreController.text.trim();
+
+    if (nombre.isEmpty) return;
+
+    final cantidad = _cantidadController.text.trim();
+    Navigator.of(context).pop((nombre: nombre, cantidad: cantidad.isEmpty ? null : cantidad));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      title: const Text(
+        'Agregar medicamento',
+        style: TextStyle(fontFamily: 'Sora', fontSize: 16, fontWeight: FontWeight.w700, color: GlucyColors.deep),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            key: const Key('campo-medicamento-nombre'),
+            controller: _nombreController,
+            autofocus: true,
+            decoration: widget.decoracion('Nombre', hint: 'Ej: Metformina'),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('campo-medicamento-cantidad'),
+            controller: _cantidadController,
+            decoration: widget.decoracion('Cantidad', hint: 'Ej: 850 mg'),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          key: const Key('boton-guardar-medicamento'),
+          onPressed: _guardar,
+          child: const Text('Agregar', style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ],
     );
   }
 }

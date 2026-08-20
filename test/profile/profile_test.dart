@@ -27,6 +27,7 @@ class PerfilApiFalsa implements PerfilApi {
     String? sexo,
     double? pesoKg,
     int? tallaCm,
+    List<MedicamentoActual>? medicacionActual,
   }) async {
     ultimoPatch = {
       'name': name,
@@ -36,6 +37,7 @@ class PerfilApiFalsa implements PerfilApi {
       'sexo': sexo,
       'pesoKg': pesoKg,
       'tallaCm': tallaCm,
+      'medicacionActual': medicacionActual,
     };
     if (error != null) throw error!;
 
@@ -104,6 +106,57 @@ void main() {
     expect(api.ultimoPatch?['tallaCm'], 162);
     expect(api.ultimoPatch?['fechaNacimiento'], DateTime(2000, 1, 1));
     expect(rutaActual(router), Rutas.filtroClinico);
+  });
+
+  testWidgets('la medicacion actual se agrega por dialogo, se puede quitar y viaja en el PATCH', (tester) async {
+    final api = PerfilApiFalsa();
+    await montar(tester, api);
+
+    await llenarValido(tester);
+
+    // Agregar Metformina 850 mg.
+    await tester.ensureVisible(find.byKey(const Key('chip-agregar-medicamento')));
+    await tester.tap(find.byKey(const Key('chip-agregar-medicamento')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('campo-medicamento-nombre')), 'Metformina');
+    await tester.enterText(find.byKey(const Key('campo-medicamento-cantidad')), '850 mg');
+    await tester.tap(find.byKey(const Key('boton-guardar-medicamento')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Metformina · 850 mg'), findsOneWidget);
+
+    // Agregar Enalapril sin cantidad y quitarlo con la X del chip.
+    await tester.tap(find.byKey(const Key('chip-agregar-medicamento')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('campo-medicamento-nombre')), 'Enalapril');
+    await tester.tap(find.byKey(const Key('boton-guardar-medicamento')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enalapril'), findsOneWidget);
+
+    await tester.tap(find.descendant(
+      of: find.ancestor(of: find.text('Enalapril'), matching: find.byType(Container)).first,
+      matching: find.byIcon(Icons.close),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enalapril'), findsNothing);
+
+    await tester.tap(find.text('Continuar al filtro clínico'));
+    await tester.pumpAndSettle();
+
+    expect(api.ultimoPatch?['medicacionActual'], [(nombre: 'Metformina', cantidad: '850 mg')]);
+  });
+
+  testWidgets('sin medicamentos agregados, medicacionActual no viaja en el PATCH', (tester) async {
+    final api = PerfilApiFalsa();
+    await montar(tester, api);
+
+    await llenarValido(tester);
+    await tester.tap(find.text('Continuar al filtro clínico'));
+    await tester.pumpAndSettle();
+
+    expect(api.ultimoPatch?['medicacionActual'], isNull);
   });
 
   testWidgets('con campos vacios no hay PATCH ni navegacion: se muestra la validacion', (tester) async {

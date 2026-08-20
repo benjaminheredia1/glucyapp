@@ -5,6 +5,10 @@ import '../../core/error/fallo_api.dart';
 import '../../core/network/dio_client.dart';
 import '../auth/domain/usuario.dart';
 
+/// Un medicamento de la medicacion actual: nombre y cantidad en texto libre
+/// ("Metformina", "850 mg").
+typedef MedicamentoActual = ({String nombre, String? cantidad});
+
 /// Datos clinicos propios que viajan anidados en `/user` y `/perfil` bajo la
 /// clave `paciente`. Solo los campos que edita la pantalla de perfil.
 class PerfilPaciente {
@@ -14,6 +18,7 @@ class PerfilPaciente {
     this.sexo,
     this.pesoKg,
     this.tallaCm,
+    this.medicacionActual = const [],
   });
 
   factory PerfilPaciente.fromJson(Map<String, dynamic> json) => PerfilPaciente(
@@ -33,6 +38,14 @@ class PerfilPaciente {
           final String talla => int.tryParse(talla),
           _ => null,
         },
+        // Laravel serializa la relacion en snake_case.
+        medicacionActual: [
+          for (final fila in json['medicacion_actual'] as List<dynamic>? ?? const [])
+            (
+              nombre: (fila as Map<String, dynamic>)['nombre'] as String,
+              cantidad: fila['cantidad'] as String?,
+            ),
+        ],
       );
 
   final int id;
@@ -40,6 +53,7 @@ class PerfilPaciente {
   final String? sexo;
   final double? pesoKg;
   final int? tallaCm;
+  final List<MedicamentoActual> medicacionActual;
 }
 
 class Perfil {
@@ -72,6 +86,8 @@ class PerfilApi {
     }
   }
 
+  /// `medicacionActual` reemplaza la lista completa en el backend: mandar
+  /// `[]` la vacia, `null` (omitir) la deja como esta.
   Future<Perfil> actualizar({
     String? name,
     String? apellidoPaterno,
@@ -80,6 +96,7 @@ class PerfilApi {
     String? sexo,
     double? pesoKg,
     int? tallaCm,
+    List<MedicamentoActual>? medicacionActual,
   }) async {
     // Solo viajan los campos con valor: PATCH parcial, igual que el backend.
     final cuerpo = <String, dynamic>{
@@ -90,6 +107,11 @@ class PerfilApi {
       'sexo': ?sexo,
       'pesoKg': ?pesoKg,
       'tallaCm': ?tallaCm,
+      if (medicacionActual != null)
+        'medicacionActual': [
+          for (final m in medicacionActual)
+            {'nombre': m.nombre, 'cantidad': ?m.cantidad},
+        ],
     };
 
     try {
