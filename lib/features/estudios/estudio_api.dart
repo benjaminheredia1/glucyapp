@@ -123,6 +123,14 @@ class EstudioApi {
           'archivo': await MultipartFile.fromFile(rutaArchivo, filename: nombreArchivo),
           'nombre': nombreArchivo,
         }),
+        // La respuesta incluye el analisis de la IA, que puede tardar mucho
+        // mas que el receiveTimeout general de 15s (el backend le da hasta
+        // 120s al proveedor). El send tambien sube: un estudio puede pesar
+        // hasta 10 MB sobre datos moviles.
+        options: Options(
+          sendTimeout: const Duration(minutes: 5),
+          receiveTimeout: const Duration(minutes: 5),
+        ),
       );
 
       return (
